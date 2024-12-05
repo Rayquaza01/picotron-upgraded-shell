@@ -32,7 +32,8 @@ The `update` key should be a list of functions that you want to run every frame.
 * Update functions should take 1 parameter: a table of variables.
     * `cmd`
     * `cursor_pos`
-    * `get_prompt`
+    * `get_prompt()`
+    * `run_terminal_command()`
 * Update functions optionally should return a table of variables to set.
     * `cmd`
     * `cursor_pos`
