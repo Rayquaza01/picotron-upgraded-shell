@@ -3,8 +3,8 @@
 -- Requires fzf (load #fzf, or https://github.com/Rayquaza01/fuzzy-finder-picotron/)
 -- Install by saving this file to /appdata/system/terminal/z.lua
 
-function ctrlf()
-	if key("ctrl") and keyp("f") then
+local function shortcut()
+	if key("alt") and keyp("c") then
 		create_process("/appdata/system/util/fzf.p64", {
 			argv = {
 				"--folders",
@@ -16,5 +16,5 @@ function ctrlf()
 end
 
 return {
-	update = { ctrlf }
+	update = { shortcut }
 }
