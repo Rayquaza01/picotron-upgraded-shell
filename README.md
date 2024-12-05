@@ -10,6 +10,7 @@ PUSH is a modified version of the default Picotron terminal. PUSH stands for **P
 * PUSH allows users to append to `_update`, letting you run a custom function every frame.
 * PUSH changes the default `cd` behavior. If run with no arguments, it will be treated as `cd /`
 * PUSH allows you to `cd` into a directory by typing that directory as a command.
+* PUSH disables input while holding alt (to allow for `Alt+Key` shortcuts
 * PUSH changes the title of the window from "Terminal" to "PUSH"
 
 All modified sections in `push.lua` are fenced with `=== PUSH ===` and `=== END PUSH ===` comments.
@@ -50,6 +51,10 @@ The `prompt` key should contain a function to replace the prompt. It should retu
 
 The `examples/` folder in this repo contains a list of example modules that can be used to add functionality to PUSH and to demonstrate how to write modules. You can install the example modules by moving them to `/appdata/system/terminal/`
 
+### `altl.lua`
+
+Adds a fish style `Alt+L` shortcut to list the files in the current directory, or the files in the directory under the cursor
+
 ### `cd.lua`
 
 Adds fish style history to the `cd` command. Overrides the builtin `cd` command. `cdh` can be used to view directory history and switch to a previous directory with `cdh <number>`. `Ctrl+N` (next) and `Ctrl+P` (previous) can be used to navigate history.
@@ -69,6 +74,10 @@ Replaces the prompt with one that makes the current directory be a brighter colo
 ### `pwd_title.lua`
 
 Adds the present working directory to the window title.
+
+### `source.lua`
+
+Adds a `source` command, to execute a lua file inside the terminal process
 
 ### `z.lua`
 
