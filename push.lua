@@ -394,7 +394,7 @@ local function run_terminal_command(cmd)
 		-- figure out how to make this modular?
 
 		-- allows cd behavior to be overridden by defining a custom cd command
-        _commands.cd(cmd)
+        _commands.cd({ cmd })
 
 		--local result = cd(cmd)
 		--if (result) then add_line(result) end
