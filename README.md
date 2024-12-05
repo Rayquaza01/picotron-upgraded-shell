@@ -77,4 +77,4 @@ Adds a shortcut (`Ctrl+F`) to launch `fzf` with the `z` shortcut. (Requires [fzf
 ## Acknowledgements
 
 * Using this require function: [lexaloffle.com/bbs/?tid=140784](https://www.lexaloffle.com/bbs/?tid=140784)
-* Modified from `push.lua` is modified from `terminal.lua`
+* `push.lua` is modified from `terminal.lua`
