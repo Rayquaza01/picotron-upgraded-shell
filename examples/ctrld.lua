@@ -2,9 +2,9 @@
 -- Allows you to close the terminal window with ctrl+d when command is blank
 -- Install by saving this file to /appdata/system/terminal/ctrld.lua
 
-local function ctrld(cmd)
+local function ctrld(v)
 	if key("ctrl") then
-		if keyp("d") and cmd == "" then
+		if keyp("d") and v.cmd == "" then
 			exit()
 		end
 	end

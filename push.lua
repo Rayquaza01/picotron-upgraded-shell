@@ -742,7 +742,26 @@ function _update()
 
 	--- === PUSH ===
 	for mupdate in all(_module_update) do
-		mupdate(cmd)
+        -- variables to be passed to the update function
+        local vars = {
+            cmd = cmd,
+            cursor_pos = cursor_pos,
+            get_prompt = get_prompt,
+        }
+
+        -- run the update function
+        local res = mupdate(vars)
+
+        -- if function updated any vars, set them
+        if res then
+            if res.cmd then
+                cmd = res.cmd
+            end
+
+            if res.cursor_pos then
+                cursor_pos = res.cursor_pos
+            end
+        end
 	end
 	--- === END PUSH ===
 end
