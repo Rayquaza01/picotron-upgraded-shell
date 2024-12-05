@@ -26,7 +26,7 @@ The `init` key should be a list of functions to run once after loading.
 
 ### `update`
 
-The `update` key should be a list of functions that you want to run every frame. This could be used adding a shortcut.
+The `update` key should be a list of functions that you want to run every frame. This could be used for adding a shortcut.
 
 * Update functions should take 1 parameter: a table of variables.
     * `cmd`
@@ -38,13 +38,13 @@ The `update` key should be a list of functions that you want to run every frame.
 
 ### `commands`
 
-The commands key should contain a table of commands to add. The key should be the name of the command, and the value should be a function that runs when that command is typed.
+The `commands` key should contain a table of commands to add. The key should be the name of the command, and the value should be a function that runs when that command is typed.
 
 * Command functions should takes one argument, a list of arguments given to the command.
 
 ### `prompt`
 
-The prompt key should contain a function to replace the prompt. It should return a string that you want to use as the prompt.
+The `prompt` key should contain a function to replace the prompt. It should return a string to use as the prompt.
 
 ## Example Modules
 
