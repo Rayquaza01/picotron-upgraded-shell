@@ -10,7 +10,7 @@ PUSH is a modified version of the default Picotron terminal. PUSH stands for **P
 * PUSH allows users to append to `_update`, letting you run a custom function every frame.
 * PUSH changes the default `cd` behavior. If run with no arguments, it will be treated as `cd /`
 * PUSH allows you to `cd` into a directory by typing that directory as a command.
-* PUSH disables input while holding alt (to allow for `Alt+Key` shortcuts
+* PUSH disables input while holding alt (to allow for `Alt+Key` shortcuts)
 * PUSH changes the title of the window from "Terminal" to "PUSH"
 
 All modified sections in `push.lua` are fenced with `=== PUSH ===` and `=== END PUSH ===` comments.
