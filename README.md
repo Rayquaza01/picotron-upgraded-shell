@@ -72,4 +72,4 @@ Adds the present working directory to the window title.
 
 ### `z.lua`
 
-Adds a shortcut (`Ctrl+F`) to launch `fzf` with the `z` shortcut. (Requires [fzf](https://github.com/Rayquaza01/fuzzy-finder-picotron/)
+Adds a shortcut (`Ctrl+F`) to launch `fzf` with the `z` shortcut. (Requires [fzf](https://github.com/Rayquaza01/fuzzy-finder-picotron/))
