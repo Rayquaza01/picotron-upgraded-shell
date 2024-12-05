@@ -1,4 +1,4 @@
---[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-05 01:28:29",revision=65]]
+--[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-05 17:49:39",revision=70]]
 --[[
 
 	PUSH
@@ -28,6 +28,10 @@ end
 
 
 if (pwd() == "/system/apps") cd("/") -- start in root instead of location of terminal.lua
+-- === PUSH ===
+if (pwd() == "/appdata/system/apps") cd("/")
+if (pwd() == "/appdata/system/util") cd("/")
+-- === PUSH END ===
 
 
 --- *** NO GLOBALS ***   --   don't want to collide with co-running program
@@ -668,10 +672,17 @@ function _update()
 		local k = readtext()
 
 		-- insert at cursor
+		-- === PUSH ===
+		-- don't read input while holding alt
+		-- allows you to bind alt+key shortcuts
+		if not key("alt") then
+		-- === END PUSH ===
+			cmd = sub(cmd, 1, cursor_pos) .. k .. sub(cmd, cursor_pos+1)
 
-		cmd = sub(cmd, 1, cursor_pos) .. k .. sub(cmd, cursor_pos+1)
-
-		cursor_pos = cursor_pos + 1
+			cursor_pos = cursor_pos + 1
+		-- === PUSH ===
+		end
+		-- === PUSH ===
 	end
 
 	if (keyp("tab")) then
@@ -747,6 +758,7 @@ function _update()
             cmd = cmd,
             cursor_pos = cursor_pos,
             get_prompt = get_prompt,
+            run_terminal_command = run_terminal_command,
         }
 
         -- run the update function
