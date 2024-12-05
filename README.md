@@ -12,7 +12,7 @@ PUSH is a modified version of the default Picotron terminal. PUSH stands for **P
 * PUSH allows you to `cd` into a directory by typing that directory as a command.
 * PUSH changes the title of the window from "Terminal" to "PUSH"
 
-All modified sections in `PUSH.lua` are fenced with `=== PUSH ===` and `=== END PUSH ===` comments.
+All modified sections in `push.lua` are fenced with `=== PUSH ===` and `=== END PUSH ===` comments.
 
 ## How can I write a module?
 
@@ -73,3 +73,8 @@ Adds the present working directory to the window title.
 ### `z.lua`
 
 Adds a shortcut (`Ctrl+F`) to launch `fzf` with the `z` shortcut. (Requires [fzf](https://github.com/Rayquaza01/fuzzy-finder-picotron/))
+
+## Acknowledgements
+
+* Using this require function: [lexaloffle.com/bbs/?tid=140784](https://www.lexaloffle.com/bbs/?tid=140784)
+* Modified from `push.lua` is modified from `terminal.lua`
