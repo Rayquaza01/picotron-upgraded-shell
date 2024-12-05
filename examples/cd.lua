@@ -1,5 +1,5 @@
 --[[pod_format="raw",created="2024-12-05 00:18:29",modified="2024-12-05 01:16:41",revision=61]]
--- Adds fish style cd history to PUSH
+-- Adds fish style cd history
 -- Install by saving this file to /appdata/system/terminal/cd.lua
 
 local cd_position = 1
