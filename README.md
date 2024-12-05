@@ -81,7 +81,7 @@ Adds a `source` command, to execute a lua file inside the terminal process
 
 ### `z.lua`
 
-Adds a shortcut (`Ctrl+F`) to launch `fzf` with the `z` shortcut. (Requires [fzf](https://github.com/Rayquaza01/fuzzy-finder-picotron/))
+Adds a shortcut (`Alt+C`) to launch `fzf` with the `z` shortcut. (Requires [fzf](https://github.com/Rayquaza01/fuzzy-finder-picotron/))
 
 ## Acknowledgements
 
