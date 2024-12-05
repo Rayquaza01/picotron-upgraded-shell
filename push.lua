@@ -122,7 +122,9 @@ function _init()
 	if (not env().corun_program) then
 		window{
 			pauseable = false,
+			-- === PUSH ===
 			title = "PUSH"
+			-- === END PUSH ===
 		}
 	end
 
