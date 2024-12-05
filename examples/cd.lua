@@ -34,11 +34,13 @@ end
 -- If argument is a number, switch to that number to that number
 local function cdh(argv)
 	if #argv > 0 and argv[1]:find("^%d+$") then
-		local index = #cd_history - tonum(argv[1])
-		if index > 0 and index < #cd_history and index ~= cd_position then
+		-- if argument is in history, and isn't the current item, then select it
+		local index = tonum(argv[1])
+		if index > 0 and index <= #cd_history and index ~= cd_position then
 			ncd({ cd_history[index] })
 		end
 	else
+		-- list all history, except currently selected history item
 		for i = 1, #cd_history, 1 do
 			if i ~= cd_position then
 				add_line(string.format("\fe%02d\f7\t\t%s", i, cd_history[i]))
