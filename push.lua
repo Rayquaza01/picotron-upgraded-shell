@@ -180,11 +180,11 @@ function _set_push_vars(res)
 	if res.cmd then
 		cmd = res.cmd
 	end
-	
+
 	if res.cursor_pos then
 		cursor_pos = res.cursor_pos
 	end
-	
+
 	if res.get_prompt then
 		get_prompt = res.get_prompt
 	end
@@ -491,11 +491,14 @@ local function run_terminal_command(cmd)
 			break
 		end
 	end
-	
-	for handler in all(_command_handlers) do
-		if handler(cmd, _get_push_vars()) then
-			command_matched = true
-			break
+
+	-- if builtin command not found, try a command handler
+	if not command_matched then
+		for handler in all(_command_handlers) do
+			if handler(cmd, _get_push_vars()) then
+				command_matched = true
+				break
+			end
 		end
 	end
 
@@ -765,8 +768,8 @@ function _update()
 		if (keyp("a")) cursor_pos = 0
 		-- === END PUSH ===
 		if (keyp("e")) cursor_pos = #cmd
-		
-	
+
+
 		-- === PUSH ===
 		-- Move Ctrl+D (delete) binding with other Ctrl bindings
 		if keyp("d") then
@@ -1080,7 +1083,7 @@ local function _load_push_module(filename)
 				_commands[k] = v
 			end
 		end
-			
+
 		if m.command_handlers ~= nil then
 			for mhandler in all(m.command_handlers) do
 				add(_command_handlers, mhandler)
