@@ -1,4 +1,4 @@
---[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-05 17:49:39",revision=70]]
+--[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-05 23:59:31",revision=88]]
 --[[
 
 	PUSH
@@ -31,7 +31,7 @@ if (pwd() == "/system/apps") cd("/") -- start in root instead of location of ter
 -- === PUSH ===
 if (pwd() == "/appdata/system/apps") cd("/")
 if (pwd() == "/appdata/system/util") cd("/")
--- === PUSH END ===
+-- === END PUSH ===
 
 
 --- *** NO GLOBALS ***   --   don't want to collide with co-running program
@@ -630,8 +630,10 @@ function _update()
 		return
 	end
 
-
-	if (key("ctrl")) then
+	-- === PUSH ===
+	-- Don't use ctrl bindings while alt is held
+	if (key("ctrl") and not key("alt")) then
+	-- === END PUSH
 
 		if keyp("l") then
 			set_draw_target(back_page)
@@ -662,7 +664,19 @@ function _update()
 
 		end
 
+		-- === PUSH ===
+		-- Move Ctrl+A binding to be next to Ctrl+E binding
+		if (keyp("a")) cursor_pos = 1
+		-- === END PUSH ===
 		if (keyp("e")) cursor_pos = #cmd
+		
+	
+		-- === PUSH ===
+		-- Move Ctrl+D (delete) binding with other Ctrl bindings
+		if keyp("d") then
+			cmd = sub(cmd, 1, max(0,cursor_pos))..sub(cmd, cursor_pos+2)
+		end
+		-- === END PUSH ===
 
 		-- clear text intput queue; don't let anything else pass through
 		-- readtext(true) -- 0.1.0f: wrong! ctrl sometimes used for text entry (altgr), and anyway ctrl-* shouldn't ever produce textinput event
@@ -676,82 +690,91 @@ function _update()
 		-- don't read input while holding alt
 		-- allows you to bind alt+key shortcuts
 		if not key("alt") then
-		-- === END PUSH ===
 			cmd = sub(cmd, 1, cursor_pos) .. k .. sub(cmd, cursor_pos+1)
 
 			cursor_pos = cursor_pos + 1
-		-- === PUSH ===
 		end
-		-- === PUSH ===
+		-- === END PUSH ===
 	end
 
-	if (keyp("tab")) then
-		tab_complete_filename();
-	end
-
-	if (keyp("up")) then
-		history[history_pos] = cmd
-		history_pos = mid(1, history_pos-1, #history	)
-		cmd = history[history_pos]
-		cursor_pos = #cmd
-	end
-
-	if (keyp("down")) then
-		history[history_pos] = cmd
-		history_pos = mid(1, history_pos+1, #history)
-		cmd = history[history_pos]
-		cursor_pos = #cmd
-	end
-
-	if (keyp("left")) then
-		cursor_pos = mid(0, cursor_pos - 1, #cmd)
-	end
-
-	if (keyp("right")) then
-		cursor_pos = mid(0, cursor_pos + 1, #cmd)
-	end
-
-	if (keyp("home") or (key("ctrl") and keyp("a"))) cursor_pos = 0
-	if (keyp("end")) cursor_pos = #cmd
-
-
-	if (keyp("enter")) then
-
-		add_line(get_prompt()..cmd)
-
-		-- execute the command
-
-		run_terminal_command(cmd)
-		show_last_line()
-
-
-		if (history[#history] == "") then
-			history[#history] = cmd
-		else
-			add(history, cmd)
-			store("/ram/system/history.pod", history)
-			store("/ram/system/pwd.pod", pwd())
+	-- === PUSH ===
+	-- Change default keybindings to not use control or alt
+	-- Useful for adding custom bindings that use control or alt
+	if not key("ctrl") and not key("alt") then
+	--- === END PUSH ===
+		if (keyp("tab")) then
+			tab_complete_filename();
 		end
 
-		history_pos = #history+1
+		if (keyp("up")) then
+			history[history_pos] = cmd
+			history_pos = mid(1, history_pos-1, #history	)
+			cmd = history[history_pos]
+			cursor_pos = #cmd
+		end
+
+		if (keyp("down")) then
+			history[history_pos] = cmd
+			history_pos = mid(1, history_pos+1, #history)
+			cmd = history[history_pos]
+			cursor_pos = #cmd
+		end
+
+		if (keyp("left")) then
+			cursor_pos = mid(0, cursor_pos - 1, #cmd)
+		end
+
+		if (keyp("right")) then
+			cursor_pos = mid(0, cursor_pos + 1, #cmd)
+		end
+
+		-- === PUSH ===
+		-- Ctrl+A moved to other Ctrl Bindings
+		if (keyp("home")) cursor_pos = 0
+		-- === END PUSH ===
+		if (keyp("end")) cursor_pos = #cmd
 
 
-		cmd = ""
-		cursor_pos = #cmd -- cursor at end of command
+		if (keyp("enter")) then
 
+			add_line(get_prompt()..cmd)
+
+			-- execute the command
+
+			run_terminal_command(cmd)
+			show_last_line()
+
+
+			if (history[#history] == "") then
+				history[#history] = cmd
+			else
+				add(history, cmd)
+				store("/ram/system/history.pod", history)
+				store("/ram/system/pwd.pod", pwd())
+			end
+
+			history_pos = #history+1
+
+
+			cmd = ""
+			cursor_pos = #cmd -- cursor at end of command
+
+		end
+
+		if (keyp("backspace") and #cmd > 0) then
+			cmd = sub(cmd, 1, max(0,cursor_pos-1))..sub(cmd, cursor_pos+1)
+			cursor_pos = mid(0, cursor_pos - 1, #cmd)
+		end
+
+	-- === PUSH ===
+		-- Ctrl+D moved to other Ctrl Bindings
+		if (keyp("delete")) then
+			cmd = sub(cmd, 1, max(0,cursor_pos))..sub(cmd, cursor_pos+2)
+		end
 	end
+	-- === END PUSH ===
 
-	if (keyp("backspace") and #cmd > 0) then
-		cmd = sub(cmd, 1, max(0,cursor_pos-1))..sub(cmd, cursor_pos+1)
-		cursor_pos = mid(0, cursor_pos - 1, #cmd)
-	end
-
-	if (keyp("delete") or (key("ctrl") and keyp("d"))) then
-		cmd = sub(cmd, 1, max(0,cursor_pos))..sub(cmd, cursor_pos+2)
-	end
-
-
-	--- === PUSH ===
+	-- === PUSH ===
 	for mupdate in all(_module_update) do
         -- variables to be passed to the update function
         local vars = {
@@ -956,7 +979,7 @@ on_event("resize", function(msg)
 	show_last_line()
 end)
 
---- === PUSH ===
+-- === PUSH ===
 
 _commands = {
 	cd = function(argv)
