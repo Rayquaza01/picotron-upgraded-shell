@@ -3,6 +3,32 @@ PUSH
 
 PUSH is a modified version of the default Picotron terminal. PUSH stands for **P**icotron **U**pgraded **SH**ell (mainly because I wanted to give it a cool name lol)
 
+## Usage
+
+### As a window
+
+Download `push.lua` and launch it in the same way you launch `terminal.lua`
+
+### As the fullscreen terminal
+
+You can replace the fullscreen terminal with PUSH by replacing `terminal.lua` in the startup script.
+
+```lua
+-- place this in /appdata/system/startup.lua or include this script from startup.lua
+
+-- replace system terminal with push
+-- if you want to have terminal.lua available, make a copy somewhere else
+cp("/appdata/system/apps/push.lua", "/system/apps/terminal.lua")
+
+-- replace the terminal.lua process with push.lua
+create_process("/appdata/system/apps/push.lua",
+	{
+		window_attribs = {fullscreen = true, pwc_output = true, immortal = true},
+		immortal   = true
+	}
+)
+```
+
 ## How Modified?
 
 * PUSH can load custom modules to do things such as add commands, shortcuts, and change appearance.
