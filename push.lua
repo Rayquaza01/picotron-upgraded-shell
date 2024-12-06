@@ -666,11 +666,11 @@ function _update()
 
 		-- === PUSH ===
 		-- Move Ctrl+A binding to be next to Ctrl+E binding
-		if (keyp("a")) cursor_pos = 1
+		if (keyp("a")) cursor_pos = 0
 		-- === END PUSH ===
 		if (keyp("e")) cursor_pos = #cmd
-		
-	
+
+
 		-- === PUSH ===
 		-- Move Ctrl+D (delete) binding with other Ctrl bindings
 		if keyp("d") then
