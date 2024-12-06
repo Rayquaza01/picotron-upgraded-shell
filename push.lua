@@ -168,39 +168,6 @@ local function require(name)
 
 	return module
 end
-
--- get and set push vars are global, so they can be accessed from any function
-
--- Sets local variables that can't be accessed from a PUSH module
-function _set_push_vars(res)
-	if res == nil then
-		return
-	end
-
-	if res.cmd then
-		cmd = res.cmd
-	end
-
-	if res.cursor_pos then
-		cursor_pos = res.cursor_pos
-	end
-
-	if res.get_prompt then
-		get_prompt = res.get_prompt
-	end
-end
-
--- Loads local variables into a table
--- so they can be accessed by PUSH modules
-function _get_push_vars()
-	return {
-		cmd = cmd, -- current cmd text
-		cursor_pos = cursor_pos, -- current cursor position
-		get_prompt = get_prompt, -- prompt function
-		run_terminal_command = run_terminal_command, -- run command function
-		commands = _commands -- builtin commands
-	}
-end
 -- === END PUSH ===
 
 -- to do: perhaps cproj can be any program; -> should be "corunning_prog"
@@ -1061,6 +1028,38 @@ on_event("resize", function(msg)
 end)
 
 -- === PUSH ===
+-- get and set push vars are global, so they can be accessed from any function
+
+-- Sets local variables that can't be accessed from a PUSH module
+function _set_push_vars(res)
+	if res == nil then
+		return
+	end
+
+	if res.cmd then
+		cmd = res.cmd
+	end
+
+	if res.cursor_pos then
+		cursor_pos = res.cursor_pos
+	end
+
+	if res.get_prompt then
+		get_prompt = res.get_prompt
+	end
+end
+
+-- Loads local variables into a table
+-- so they can be accessed by PUSH modules
+function _get_push_vars()
+	return {
+		cmd = cmd, -- current cmd text
+		cursor_pos = cursor_pos, -- current cursor position
+		get_prompt = get_prompt, -- prompt function
+		run_terminal_command = run_terminal_command, -- run command function
+		commands = _commands -- builtin commands
+	}
+end
 
 -- Loads a PUSH module
 local function _load_push_module(filename)
