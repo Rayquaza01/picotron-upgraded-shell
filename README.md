@@ -68,6 +68,14 @@ Clear the current command by pressing `Ctrl+C`.
 
 Close the terminal if `Ctrl+D` is pressed and no command is typed.
 
+### `emacs.lua`
+
+Adds some emacs bindings, such as `Ctrl+F` (forward), `Ctrl+B` (backward), `Ctrl+Left` (Move to previous word), `Ctrl+Right` (Move to next word), and `Ctrl+W` (delete from cursor to previous word).
+
+`Ctrl+A` and `Ctrl+E` are builtin to `terminal.lua`, so they are not included in the module.
+
+Uses some code from `/system/lib/gui_ed.lua`.
+
 ### `prompt.lua`
 
 Replaces the prompt with one that makes the current directory be a brighter color.
@@ -88,3 +96,4 @@ Adds a shortcut (`Alt+C`) to launch `fzf` with the `z` shortcut. (Requires [fzf]
 
 * Using this require function: [lexaloffle.com/bbs/?tid=140784](https://www.lexaloffle.com/bbs/?tid=140784)
 * `push.lua` is modified from `terminal.lua`
+* `examples/emacs.lua` uses `calculate_skip_steps` and `get_char_cat` from `/system/lib/gui_ed.lua`
