@@ -29,15 +29,26 @@ local function ncd(argv)
 	end
 end
 
+local function prevd()
+	cd_position = mid(cd_position - 1, 1, #cd_history)
+	cd(cd_history[cd_position])
+end
+
+local function nextd()
+	cd_position = mid(cd_position + 1, 1, #cd_history)
+	cd(cd_history[cd_position])
+end
+
 -- Navigate cd history
 -- If no arguments, show history
 -- If argument is a number, switch to that number to that number
 local function cdh(argv)
 	if #argv > 0 and argv[1]:find("^%d+$") then
-		-- if argument is in history, and isn't the current item, then select it
+		-- jump to position without changing history order
 		local index = tonum(argv[1])
 		if index > 0 and index <= #cd_history and index ~= cd_position then
-			ncd({ cd_history[index] })
+			cd_position = index
+			cd(cd_history[cd_position])
 		end
 	else
 		-- list all history, except currently selected history item
@@ -55,13 +66,11 @@ end
 local function shortcuts()
 	if key("ctrl") then
 		if keyp("p") then
-			cd_position = mid(cd_position - 1, 1, #cd_history)
-			cd(cd_history[cd_position])
+			prevd()
 		end
 
 		if keyp("n") then
-			cd_position = mid(cd_position + 1, 1, #cd_history)
-			cd(cd_history[cd_position])
+			nextd()
 		end
 	end
 end
@@ -69,7 +78,9 @@ end
 return {
 	commands = {
 		cd  = ncd,
-		cdh = cdh
+		cdh = cdh,
+		prevd = prevd,
+		nextd = nextd,
 	},
 	update = { shortcuts }
 }
