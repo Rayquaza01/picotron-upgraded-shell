@@ -35,7 +35,6 @@ create_process("/appdata/system/apps/push.lua",
 * PUSH changes the way builtin commands are handled, allowing users to add and override builtin commands.
 * PUSH allows users to append to `_update`, letting you run a custom function every frame.
 * PUSH changes the default `cd` behavior. If run with no arguments, it will be treated as `cd /`
-* PUSH allows you to `cd` into a directory by typing that directory as a command.
 * PUSH disables input while holding alt (to allow for `Alt+Key` shortcuts)
 * PUSH changes the title of the window from "Terminal" to "PUSH"
 
@@ -47,30 +46,52 @@ PUSH modules are just lua modules. PUSH looks for modules in `/appdata/system/te
 
 You should not `print()` inside a module. Use `add_line()` instead.
 
-### `init`
+### `_get_push_vars()`
 
-The `init` key should be a list of functions to run once after loading.
+`_get_push_vars()` is a global function that returns push variables. It's used to make local variables accessible to module code. The push variables are passed to functions as an argument automatically, so there should not be any reason to call this directly.
 
-### `update`
+The variables this exposes are:
+* `cmd` - currently typed command
+* `cursor_pos` - current cursor position
+* `get_prompt()` - prompt function
+* `run_terminal_command()` - run any terminal command
 
-The `update` key should be a list of functions that you want to run every frame. This could be used for adding a shortcut.
+### `_set_push_vars()`
 
-* Update functions should take 1 parameter: a table of variables.
-    * `cmd`
-    * `cursor_pos`
-    * `get_prompt()`
-    * `run_terminal_command()`
-* Update functions optionally should return a table of variables to set.
-    * `cmd`
-    * `cursor_pos`
+`_get_push_vars()` is a global function that sets push variables. It's used to make local variables accessible to module code. The push variables are set based on the return value of update functions automatically, so there should not be any reason to call this directly.
 
-### `commands`
+The variables you can set are:
+* `cmd` - currently typed command
+* `cursor_pos` - current cursor position
+* `get_prompt()` - prompt function
+
+### Key: `init`
+
+The `init` key should contain a list of functions to run once after loading.
+
+### Key: `update`
+
+The `update` key should contain a list of functions that you want to run every frame. This could be used for adding a shortcut.
+
+* Update functions should take 1 parameter, the push variables table. (See `_get_push_vars()`)
+* Update functions optionally should return a table of push variables to set. (See `_set_push_vars()`)
+
+### Key: `commands`
 
 The `commands` key should contain a table of commands to add. The key should be the name of the command, and the value should be a function that runs when that command is typed.
 
-* Command functions should takes one argument, a list of arguments given to the command.
+* Command functions should takes two arguments, a list of arguments given to the command and the push variables table. (See `_get_push_vars()`)
 
-### `prompt`
+### Key: `command_handlers`
+
+The `command_handlers` key should contain a list of functions to handle unspecified commands. Command handlers are run *after* builtin commands but *before* executing programs from path.
+
+Command handlers should be used to handle commands with non-standard names. (For example, if you want to `cd` into a path by typing just the directory name). If a command has a standard name, you should use `commands` or an external program instead.
+
+* Command handler functions should take two arguments, the full command and the push variables table. (See `_get_push_vars()`)
+* Command handler functions should return a boolean. `true` if the command was handled, and `false` if it wasn't.
+
+### Key: `prompt`
 
 The `prompt` key should contain a function to replace the prompt. It should return a string to use as the prompt.
 
@@ -82,9 +103,23 @@ The `examples/` folder in this repo contains a list of example modules that can 
 
 Adds a fish style `Alt+L` shortcut to list the files in the current directory, or the files in the directory under the cursor
 
+### `barecd.lua`
+
+Adds bare cd (move to a directory by typing just the directory).
+
+Adds dots to go up a directory (`..` is equivalent to `cd ..`, `...` is equivalent to `cd ../..`, etc)
+
+Also adds an `up` command to go up a directory. (`up 1` is equivalent to `cd ..`, `up 2` is equivalent to `cd ../..`, etc)
+
 ### `cd.lua`
 
-Adds fish style history to the `cd` command. Overrides the builtin `cd` command. `cdh` can be used to view directory history and switch to a previous directory with `cdh <number>`. `Ctrl+N` (next) and `Ctrl+P` (previous) can be used to navigate history.
+Adds fish style history to the `cd` command. Overrides the builtin `cd` command.
+
+Adds a `cdh` command to view directory history and switch to a previous directory with `cdh <number>`.
+
+Adds `Ctrl+N` (next) and `Ctrl+P` (previous) shortcuts to navigate history.
+
+Adds `nextd` (next) and `prevd` (previous) commands to navigate history.
 
 ### `ctrlc.lua`
 
@@ -96,7 +131,7 @@ Close the terminal if `Ctrl+D` is pressed and no command is typed.
 
 ### `emacs.lua`
 
-Adds some emacs bindings, such as `Ctrl+F` (forward), `Ctrl+B` (backward), `Ctrl+Left` (Move to previous word), `Ctrl+Right` (Move to next word), and `Ctrl+W` (delete from cursor to previous word).
+Adds some emacs shortcuts, such as `Ctrl+F` (forward), `Ctrl+B` (backward), `Ctrl+Left` (Move to previous word), `Ctrl+Right` (Move to next word), and `Ctrl+W` (delete from cursor to previous word).
 
 `Ctrl+A` and `Ctrl+E` are builtin to `terminal.lua`, so they are not included in the module.
 
