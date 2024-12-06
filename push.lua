@@ -1,4 +1,4 @@
---[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-05 23:59:31",revision=88]]
+--[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-06 03:53:09",revision=108]]
 --[[
 
 	PUSH
@@ -54,10 +54,32 @@ local max_lines = 64 -- to do: increase w/ more efficient rendering (cache varia
 local left_margin = 2
 
 -- === PUSH ===
-local _modules
-local _module_update
-local _commands
-local _module_dir
+local _modules = {}
+local _module_update = {}
+local _commands = {
+	cd = function(argv)
+		local result = cd(argv[1] or "/")
+		if (result) then add_line(result) end
+	end,
+	exit = function(argv)
+		exit(0)
+	end,
+	cls = function(argv)
+		set_draw_target(back_page)
+		cls()
+		set_draw_target()
+		scroll_y = last_total_text_h
+	end,
+	reset = function(argv)
+		reset()
+	end,
+	resume = function(argv)
+		running_cproj = true
+		send_message(3, {event="set_haltable_proc_id", haltable_proc_id = pid()})
+	end
+}
+local _command_handlers = {}
+local _module_dir = "/appdata/system/terminal"
 -- === END PUSH ===
 
 local terminal_draw
@@ -104,6 +126,82 @@ local exit = exit
 local split = split
 local set_clipboard = set_clipboard
 local get_clipboard = get_clipboard
+
+-- === PUSH ===
+-- Local functions need to be defined above where they are called
+
+-- https://www.lexaloffle.com/bbs/?tid=140784
+local function require(name)
+   if _modules == nil then
+   		_modules={}
+   	end
+
+	local already_imported = _modules[name]
+	if already_imported ~= nil then
+		return already_imported
+	end
+
+	local filename = fullpath(name)
+	local src = fetch(filename)
+
+	if (type(src) ~= "string") then
+		notify("could not include "..filename)
+		stop()
+		return
+	end
+
+	-- https://www.lua.org/manual/5.4/manual.html#pdf-load
+	-- chunk name (for error reporting), mode ("t" for text only -- no binary chunk loading), _ENV upvalue
+	-- @ is a special character that tells debugger the string is a filename
+	local func,err = load(src, "@"..filename, "t", _ENV)
+	-- syntax error while loading
+	if (not func) then
+		send_message(3, {event="report_error", content = "*syntax error"})
+		send_message(3, {event="report_error", content = tostr(err)})
+
+		stop()
+		return
+	end
+
+	local module = func()
+	_modules[name]=module
+
+	return module
+end
+
+-- get and set push vars are global, so they can be accessed from any function
+
+-- Sets local variables that can't be accessed from a PUSH module
+function _set_push_vars(res)
+	if res == nil then
+		return
+	end
+
+	if res.cmd then
+		cmd = res.cmd
+	end
+	
+	if res.cursor_pos then
+		cursor_pos = res.cursor_pos
+	end
+	
+	if res.get_prompt then
+		get_prompt = res.get_prompt
+	end
+end
+
+-- Loads local variables into a table
+-- so they can be accessed by PUSH modules
+function _get_push_vars()
+	return {
+		cmd = cmd, -- current cmd text
+		cursor_pos = cursor_pos, -- current cursor position
+		get_prompt = get_prompt, -- prompt function
+		run_terminal_command = run_terminal_command, -- run command function
+		commands = _commands -- builtin commands
+	}
+end
+-- === END PUSH ===
 
 -- to do: perhaps cproj can be any program; -> should be "corunning_prog"
 -- (or two separate concepts if need)
@@ -387,7 +485,15 @@ local function run_terminal_command(cmd)
 
 	for command_name, cb in pairs(_commands) do
 		if (argv[0] == command_name) then
-			cb(argv)
+			local res = cb(argv, _get_push_vars())
+
+			command_matched = true
+			break
+		end
+	end
+	
+	for handler in all(_command_handlers) do
+		if handler(cmd, _get_push_vars()) then
 			command_matched = true
 			break
 		end
@@ -395,16 +501,6 @@ local function run_terminal_command(cmd)
 
 	if command_matched then
 		-- do nothing
-	elseif (fstat(cmd) == "folder") then
-		-- This is a different pattern than the rest of the commands
-		-- figure out how to make this modular?
-
-		-- allows cd behavior to be overridden by defining a custom cd command
-        _commands.cd({ cmd })
-
-		--local result = cd(cmd)
-		--if (result) then add_line(result) end
-
 	--- === END PUSH ===
 	elseif (prog_name) then
 
@@ -669,8 +765,8 @@ function _update()
 		if (keyp("a")) cursor_pos = 0
 		-- === END PUSH ===
 		if (keyp("e")) cursor_pos = #cmd
-
-
+		
+	
 		-- === PUSH ===
 		-- Move Ctrl+D (delete) binding with other Ctrl bindings
 		if keyp("d") then
@@ -776,27 +872,9 @@ function _update()
 
 	-- === PUSH ===
 	for mupdate in all(_module_update) do
-        -- variables to be passed to the update function
-        local vars = {
-            cmd = cmd,
-            cursor_pos = cursor_pos,
-            get_prompt = get_prompt,
-            run_terminal_command = run_terminal_command,
-        }
-
-        -- run the update function
-        local res = mupdate(vars)
-
-        -- if function updated any vars, set them
-        if res then
-            if res.cmd then
-                cmd = res.cmd
-            end
-
-            if res.cursor_pos then
-                cursor_pos = res.cursor_pos
-            end
-        end
+		-- run the update function
+		local res = mupdate(_get_push_vars())
+		_set_push_vars(res)
 	end
 	--- === END PUSH ===
 end
@@ -981,103 +1059,47 @@ end)
 
 -- === PUSH ===
 
-_commands = {
-	cd = function(argv)
-		local result = cd(argv[1] or "/")
-		if (result) then add_line(result) end
-	end,
-	exit = function(argv)
-		exit(0)
-	end,
-	cls = function(argv)
-		set_draw_target(back_page)
-		cls()
-		set_draw_target()
-		scroll_y = last_total_text_h
-	end,
-	reset = function(argv)
-		reset()
-	end,
-	resume = function(argv)
-		running_cproj = true
-		send_message(3, {event="set_haltable_proc_id", haltable_proc_id = pid()})
+-- Loads a PUSH module
+local function _load_push_module(filename)
+	local m = require(filename)
+	if m ~= nil then
+		if m.init ~= nil then
+			for minit in all(m.init) do
+				minit()
+			end
+		end
+
+		if m.update ~= nil then
+			for mupdate in all(m.update) do
+				add(_module_update, mupdate)
+			end
+		end
+
+		if m.commands ~= nil then
+			for k, v in pairs(m.commands) do
+				_commands[k] = v
+			end
+		end
+			
+		if m.command_handlers ~= nil then
+			for mhandler in all(m.command_handlers) do
+				add(_command_handlers, mhandler)
+			end
+		end
+
+		if m.prompt ~= nil then
+			get_prompt = m.prompt
+		end
 	end
-}
-
-_modules = {}
-
--- https://www.lexaloffle.com/bbs/?tid=140784
-local function require(name)
-   if _modules == nil then
-   		_modules={}
-   	end
-
-	local already_imported = _modules[name]
-	if already_imported ~= nil then
-		return already_imported
-	end
-
-	local filename = fullpath(name)
-	local src = fetch(filename)
-
-	if (type(src) ~= "string") then
-		notify("could not include "..filename)
-		stop()
-		return
-	end
-
-	-- https://www.lua.org/manual/5.4/manual.html#pdf-load
-	-- chunk name (for error reporting), mode ("t" for text only -- no binary chunk loading), _ENV upvalue
-	-- @ is a special character that tells debugger the string is a filename
-	local func,err = load(src, "@"..filename, "t", _ENV)
-	-- syntax error while loading
-	if (not func) then
-		send_message(3, {event="report_error", content = "*syntax error"})
-		send_message(3, {event="report_error", content = tostr(err)})
-
-		stop()
-		return
-	end
-
-	local module = func()
-	_modules[name]=module
-
-	return module
 end
 
-_module_update = {}
-
-_module_dir = "/appdata/system/terminal"
 if not fstat(_module_dir) then
 	mkdir(_module_dir)
 end
 
 for file in all(ls(_module_dir)) do
 	if file:find("%.lua$") then
-		local m = require(_module_dir.."/"..file)
-		if m ~= nil then
-			if m.init ~= nil then
-				for minit in all(m.init) do
-					minit()
-				end
-			end
-
-			if m.update ~= nil then
-				for mupdate in all(m.update) do
-					add(_module_update, mupdate)
-				end
-			end
-
-			if m.commands ~= nil then
-				for k, v in pairs(m.commands) do
-					_commands[k] = v
-				end
-			end
-
-			if m.prompt ~= nil then
-				get_prompt = m.prompt
-			end
-		end
+		_load_push_module(_module_dir.."/"..file)
 	end
 end
 
