@@ -450,13 +450,10 @@ local function run_terminal_command(cmd)
 	--- === PUSH ===
 	local command_matched = false
 
-	for command_name, cb in pairs(_commands) do
-		if (argv[0] == command_name) then
-			local res = cb(argv, _get_push_vars())
+	if _commands[argv[0]] ~= nil then
+		_commands[argv[0]](argv, _get_push_vars())
 
-			command_matched = true
-			break
-		end
+		command_matched = true
 	end
 
 	-- if builtin command not found, try a command handler
