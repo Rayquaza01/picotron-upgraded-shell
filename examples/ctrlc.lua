@@ -3,11 +3,13 @@
 -- Install by saving this file to /appdata/system/terminal/ctrlc.lua
 
 local function ctrlc(v)
-	if key("ctrl") and keyp("c") then
-		if v.cmd ~= "" then
-			add_line(v.get_prompt() .. v.cmd .. "\f8^C\f7")
+	if key("ctrl") and not key("alt") then
+		if keyp("c") then
+			if v.cmd ~= "" then
+				add_line(v.get_prompt() .. v.cmd .. "\f8^C\f7")
+			end
+			return { cmd = "" }
 		end
-		return { cmd = "" }
 	end
 end
 

@@ -3,7 +3,7 @@
 -- Install by saving this file to /appdata/system/terminal/ctrld.lua
 
 local function ctrld(v)
-	if key("ctrl") then
+	if key("ctrl") and not key("alt") then
 		if keyp("d") and v.cmd == "" then
 			exit()
 		end

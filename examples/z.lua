@@ -4,14 +4,16 @@
 -- Install by saving this file to /appdata/system/terminal/z.lua
 
 local function shortcut()
-	if key("alt") and keyp("c") then
-		create_process("/appdata/system/util/fzf.p64", {
-			argv = {
-				"--folders",
-				"--no-files",
-				"--clipboard"
-			}
-		})
+	if not key("ctrl") and key("alt") then
+		if keyp("c") then
+			create_process("/appdata/system/util/fzf.p64", {
+				argv = {
+					"--folders",
+					"--no-files",
+					"--clipboard"
+				}
+			})
+		end
 	end
 end
 

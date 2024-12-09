@@ -8,15 +8,17 @@
 --- @param c string
 --- @return integer
 local function get_char_cat(c)
-	if (string.find("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", c, 1, true)) return 1
-	if (ord(c) >= 128 or ord(c) < 0) return 1
+	if (string.find("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_", c, 1, true)) then return 1 end
+	if (ord(c) >= 128 or ord(c) < 0) then
+		return 1
+	end
 
 	-- pico-8 0.2.4d: added some operators for pico-8 help system
-	if (string.find("@%$", c, 1, true)) return 3
-	if (string.find("#^?", c, 1, true)) return 4
-	if (string.find("(){}[]<>", c, 1, true)) return 5
+	if (string.find("@%$", c, 1, true)) then return 3 end
+	if (string.find("#^?", c, 1, true)) then return 4 end
+	if (string.find("(){}[]<>", c, 1, true)) then return 5 end
 
-	if (string.find("!@#$%^&*:;.,~=+-/\\`'\"", c, 1, true)) return 2;
+	if (string.find("!@#$%^&*:;.,~=+-/\\`'\"", c, 1, true)) then return 2 end
 
 	return 6 -- something else. whitespace
 end
@@ -29,33 +31,23 @@ end
 --- @param dir integer
 --- @return integer
 local function calculate_skip_steps(str, pos, dir)
-
 	local line = str
 	local cur_y = 1
 	local cur_x = pos + 1
-
-	-- normal cursor movement: one character at a time
-	if not key("ctrl") then
-		if (dir < 0 and (cur_y > 1 or cur_x > 1)) return -1
-		if (dir > 0 and (cur_y < #text or cur_x <= #line)) return 1
-		return 0;
-	end
-
-
 
 	local pos = cur_x
 	local cat0 = 0 -- unknown starting category
 
 	while ((dir < 0 and pos > 1) or (dir > 0 and pos <= #line + 1)) do -- #line + 1 for \n
 
-		if (dir < 0) pos += dir
+		if (dir < 0) then pos += dir end
 
 		-- category of current char
 		cat = get_char_cat(sub(line,pos,pos));
 
 		-- found a character that disagrees with starting category -> end of span
-		if ((cat0 > 0) and (cat != cat0)) then
-			if (dir > 0 and pos > 0) pos -= 1
+		if ((cat0 > 0) and (cat ~= cat0)) then
+			if (dir > 0 and pos > 0) then pos -= 1 end
 
 			if (cat0 == 6 and cat ~= 6) then
 				-- skip whitespace and search for end of non-whitespace
@@ -70,10 +62,10 @@ local function calculate_skip_steps(str, pos, dir)
 			cat0 = cat
 		end
 
-		if (dir > 0) pos += dir
+		if (dir > 0) then pos += dir end
 	end
 
-	if (dir > 0 and pos > 1) pos -= 1
+	if (dir > 0 and pos > 1) then pos -= 1 end
 
 	return pos - cur_x
 end
@@ -82,7 +74,7 @@ local function shortcut(v)
 	local cursor_pos = v.cursor_pos
 	local cmd = v.cmd
 
-	if key("ctrl") then
+	if key("ctrl") and not key("alt") then
 		-- Ctrl+A and Ctrl+E are default
 
 		if keyp("f") then

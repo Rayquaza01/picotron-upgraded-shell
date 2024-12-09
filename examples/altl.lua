@@ -24,7 +24,7 @@ local function get_token(str, pos)
 end
 
 local function shortcut(v)
-	if key("alt") then
+	if not key("ctrl") and key("alt") then
 		if keyp("l") then
 			local token = get_token(v.cmd, v.cursor_pos + 1)
 
