@@ -5,7 +5,7 @@
 local function history(argv, push)
 	if #argv > 0 then
 		local num = tonumber(argv[1])
-		if num > 1 and num <= #push.history then
+		if num ~= nil and num > 1 and num <= #push.history then
 			push.run_terminal_command(push.history[num])
 		else
 			for i = 1, #push.history, 1 do
