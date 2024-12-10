@@ -53,6 +53,7 @@ You should not `print()` inside a module. Use `add_line()` instead.
 The variables this exposes are:
 * `cmd` - currently typed command
 * `cursor_pos` - current cursor position
+* `history` - command history table
 * `get_prompt()` - prompt function
 * `run_terminal_command()` - run any terminal command
 
@@ -136,6 +137,16 @@ Adds some emacs shortcuts, such as `Ctrl+F` (forward), `Ctrl+B` (backward), `Ctr
 `Ctrl+A` and `Ctrl+E` are builtin to `terminal.lua`, so they are not included in the module.
 
 Uses some code from `/system/lib/gui_ed.lua`.
+
+### `history.lua`
+
+Adds a history command to search through command history.
+
+`history` to view the 25 most recent history entries
+
+`history <term>` to search for `<term>` in history
+
+`history <number>` to execute a command from history.
 
 ### `prompt.lua`
 

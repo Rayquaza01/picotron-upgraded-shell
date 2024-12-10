@@ -1,4 +1,4 @@
---[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-06 03:53:09",revision=108]]
+--[[pod_format="raw",created="2024-12-04 21:59:45",modified="2024-12-10 04:23:55",revision=109]]
 --[[
 
 	PUSH
@@ -1052,6 +1052,7 @@ function _get_push_vars()
 	return {
 		cmd = cmd, -- current cmd text
 		cursor_pos = cursor_pos, -- current cursor position
+		history = history, -- command history
 		get_prompt = get_prompt, -- prompt function
 		run_terminal_command = run_terminal_command, -- run command function
 		commands = _commands -- builtin commands
