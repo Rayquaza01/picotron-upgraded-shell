@@ -3,6 +3,17 @@
 -- Install by saving this file to /appdata/system/terminal/barecd.lua
 
 local function bare_cd(cmd, push)
+	-- if command starts with ./ and is a cart, don't cd into it
+	-- execute it instead
+	if cmd:find("^%./") and (cmd:find("%.p64$") or cmd:find("%.p64%.png$") or cmd:find("%.rom$")) then
+		return false
+	end
+
+	-- don't cd into any carts
+	-- if cmd:find("%.p64$") or cmd:find("%.p64%.png$") or cmd:find("%.rom$") then
+	-- 	return false
+	-- end
+
 	if fstat(cmd) == "folder" then
 		push.commands.cd({ cmd }, push)
 		return true
