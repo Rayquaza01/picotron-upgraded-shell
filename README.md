@@ -138,6 +138,24 @@ Adds some emacs shortcuts, such as `Ctrl+F` (forward), `Ctrl+B` (backward), `Ctr
 
 Uses some code from `/system/lib/gui_ed.lua`.
 
+### `fman.lua`
+
+Adds a `yank` command that copies files.
+
+Adds a `cut` command that cuts files.
+
+Adds a `put` command that pastes files in the current directory.
+
+Example:
+
+```
+yank file1
+yank file2
+cd /some/other/dir
+put
+# will paste file1 and file2 in the current directory
+```
+
 ### `history.lua`
 
 Adds a history command to search through command history.
