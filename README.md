@@ -130,6 +130,10 @@ Clear the current command by pressing `Ctrl+C`.
 
 Close the terminal if `Ctrl+D` is pressed and no command is typed.
 
+### `drop_files.lua`
+
+Insert filenames into the command by dropping
+
 ### `emacs.lua`
 
 Adds some emacs shortcuts, such as `Ctrl+F` (forward), `Ctrl+B` (backward), `Ctrl+Left` (Move to previous word), `Ctrl+Right` (Move to next word), and `Ctrl+W` (delete from cursor to previous word).
