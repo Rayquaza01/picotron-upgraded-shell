@@ -1,4 +1,4 @@
---[[pod_format="raw",created="2024-12-05 19:36:10",modified="2024-12-05 23:54:49",revision=121]]
+--[[pod_format="raw",created="2024-12-05 19:36:10",modified="2025-02-15 02:57:33",revision=128]]
 -- Adds a few emacs bindings, such as Ctrl+Arrows and Ctrl+W
 -- Using some code from /system/lib/gui_ed.lua
 -- Install by saving this file to /appdata/system/terminal/emacs.lua
@@ -98,10 +98,10 @@ local function shortcut(v)
 		-- Ctrl+W deletes from the cursor to the previous word
 
 		if keyp("w") then
-			local start_del = mid(cursor_pos + calculate_skip_steps(cmd, cursor_pos, -1), 0, #cmd)
+			local start_del = max(cursor_pos + calculate_skip_steps(cmd, cursor_pos, -1), 0)
 			local end_del = cursor_pos
 			cmd = sub(cmd, 1, start_del) .. sub(cmd, end_del + 1, #cmd)
-			cursor_pos = mid(1, end_del + 1, #cmd)
+			cursor_pos = start_del
 		end
 	end
 
