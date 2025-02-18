@@ -1,4 +1,4 @@
---[[pod_format="raw",created="2024-12-06 02:48:46",modified="2024-12-06 03:59:18",revision=10]]
+--[[pod_format="raw",created="2024-12-06 02:48:46",modified="2025-02-18 16:03:43",revision=11]]
 -- Adds bare cd and bare dots command handlers, as well as an up command
 -- Install by saving this file to /appdata/system/terminal/barecd.lua
 
@@ -6,6 +6,10 @@ local function bare_cd(cmd, push)
 	-- if command starts with ./ and is a cart, don't cd into it
 	-- execute it instead
 	if cmd:find("^%./") and (cmd:find("%.p64$") or cmd:find("%.p64%.png$") or cmd:find("%.rom$")) then
+		return false
+	end
+
+	if pwd():prot() == "bbs" then
 		return false
 	end
 
