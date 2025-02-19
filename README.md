@@ -188,6 +188,5 @@ Adds a shortcut (`Alt+C`) to launch `fzf` with the `z` shortcut. (Requires [fzf]
 
 ## Acknowledgements
 
-* Using this require function: [lexaloffle.com/bbs/?tid=140784](https://www.lexaloffle.com/bbs/?tid=140784)
 * `push.lua` is modified from `terminal.lua`
 * `examples/emacs.lua` uses `calculate_skip_steps` and `get_char_cat` from `/system/lib/gui_ed.lua`
