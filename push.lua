@@ -133,49 +133,6 @@ local split = split
 local set_clipboard = set_clipboard
 local get_clipboard = get_clipboard
 
--- === PUSH ===
--- Local functions need to be defined above where they are called
-
--- https://www.lexaloffle.com/bbs/?tid=140784
-local function require(name)
-   if _modules == nil then
-   		_modules={}
-   	end
-
-	local already_imported = _modules[name]
-	if already_imported ~= nil then
-		return already_imported
-	end
-
-	local filename = fullpath(name)
-	local src = fetch(filename)
-
-	if (type(src) ~= "string") then
-		notify("could not include "..filename)
-		stop()
-		return
-	end
-
-	-- https://www.lua.org/manual/5.4/manual.html#pdf-load
-	-- chunk name (for error reporting), mode ("t" for text only -- no binary chunk loading), _ENV upvalue
-	-- @ is a special character that tells debugger the string is a filename
-	local func,err = load(src, "@"..filename, "t", _ENV)
-	-- syntax error while loading
-	if (not func) then
-		send_message(3, {event="report_error", content = "*syntax error"})
-		send_message(3, {event="report_error", content = tostr(err)})
-
-		stop()
-		return
-	end
-
-	local module = func()
-	_modules[name]=module
-
-	return module
-end
--- === END PUSH ===
-
 -- to do: perhaps cproj can be any program; -> should be "corunning_prog"
 -- (or two separate concepts if need)
 local running_cproj = false
@@ -1103,7 +1060,7 @@ end
 
 -- Loads a PUSH module
 local function _load_push_module(filename)
-	local m = require(filename)
+	local m = include(filename)
 	if m ~= nil then
 		if m.init ~= nil then
 			for minit in all(m.init) do
