@@ -56,6 +56,7 @@ The variables this exposes are:
 * `history` - command history table
 * `get_prompt()` - prompt function
 * `run_terminal_command()` - run any terminal command
+* `input_prompt` - the prompt used by `input()`
 
 ### `_set_push_vars()`
 
@@ -95,6 +96,15 @@ Command handlers should be used to handle commands with non-standard names. (For
 ### Key: `prompt`
 
 The `prompt` key should contain a function to replace the prompt. It should return a string to use as the prompt.
+
+Custom prompts should return the input prompt if it's set, or else `input()` won't change the prompt.
+
+```lua
+local input_prompt = _get_push_vars().input_prompt
+if input_prompt then
+    return input_prompt.str -- reading some user text
+end
+```
 
 ## Example Modules
 

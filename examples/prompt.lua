@@ -3,6 +3,11 @@
 -- Install by saving this file to /appdata/system/terminal/prompt.lua
 
 local function prompt()
+	local input_prompt = _get_push_vars().input_prompt
+	if input_prompt then
+		return input_prompt.str -- reading some user text
+	end
+
 	local path = split(pwd(), "/", false)
 	path[#path] = "\fc" .. path[#path]
 

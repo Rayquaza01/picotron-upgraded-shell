@@ -1,4 +1,5 @@
---[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.2.18"]]--[[
+--[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.7.10"]]
+--[[
 
 	PUSH
 
@@ -9,7 +10,8 @@
 	-- ** terminal is also an application launcher. manages cproj / decides permissions **
 
 	-- to consider: line entry in terminal can be a bitmap
-
+		// can already use p8scii! works but need to improve workflow for encoding characters (and maybe use P8-style unicode replacements)
+		// alternative: could support pod_type="image" style lines using same rule a text editor widget
 
 ]]
 
@@ -18,7 +20,7 @@
 -- this window size might be overwritten by env().window_attribs
 if (not env().corun_program) then
 	window{
-		width=320,
+		width=260, -- 0.1.0e: changed to 240 (was 320). be more boxy. 5*52, 4*65
 		height=160,
 		icon = userdata"[gfx]0907000707000000070000777777777770000077770000077770000077777777777[/gfx]"
 	}
@@ -27,14 +29,20 @@ end
 
 
 if (pwd() == "/system/apps") cd("/") -- start in root instead of location of terminal.lua
--- === PUSH ===
+--- === PUSH ===
 if (pwd() == "/appdata/system/apps") cd("/")
 if (pwd() == "/appdata/system/util") cd("/")
--- === END PUSH ===
+--- === END PUSH ===
 
--- 0.1.1e: set starting path
+
+-- 0.1.1e: set starting path via commandline
 if fullpath(env().argv[1]) then
 	cd(fullpath(env().argv[1]))
+end
+
+-- 0.2.0e: set starting path via env().path
+if env().path then
+	cd(env().path)
 end
 
 --- *** NO GLOBALS ***   --   don't want to collide with co-running program
@@ -42,6 +50,10 @@ end
 local cmd=""
 
 local line={}
+--- === PUSH ===
+-- Keep add_line global for convenience...
+-- local add_line = function() end
+--- === PUSH ===
 local lineh={}
 local history={}
 local history_pos = 1
@@ -49,49 +61,32 @@ local scroll_y = 0
 local char_h = peek(0x4002)
 local char_w = peek(0x4000)
 local cursor_pos = 0
-local disp_w, disp_h = 0, 0
+local disp_w, disp_h = 480, 270 -- assume full size (needed for ctrl-r terminal program)
 local back_page = userdata("u8", 480, 270)
 local last_total_text_h = 0
-local max_lines = 64 -- to do: increase w/ more efficient rendering (cache variable line offsets)
+local max_lines = 256 -- to do: increase w/ more efficient rendering (cache variable line offsets)
 local left_margin = 2
-
--- === PUSH ===
-local _modules = {}
-local _module_update = {}
-local _commands = {
-	cd = function(argv)
-		local result = cd(argv[1] or "/")
-		if (result) then add_line(result) end
-	end,
-	exit = function(argv)
-		exit(0)
-	end,
-	cls = function(argv)
-		set_draw_target(back_page)
-		cls()
-		set_draw_target()
-		scroll_y = last_total_text_h
-	end,
-	reset = function(argv)
-		reset()
-		window{pauseable=false}
-		vid(0)
-
-	end,
-	resume = function(argv)
-		running_cproj = true
-		send_message(3, {event="set_haltable_proc_id", haltable_proc_id = pid()})
-	end
-}
-local _command_handlers = {}
-local _module_dir = "/appdata/system/terminal"
--- === END PUSH ===
 
 local terminal_draw
 local terminal_update
 
-local cproj_draw, cproj_update
+local corun_draw, corun_update
 
+local input_prompt
+local blocking_proc_id
+
+local terminal_cor
+local corun_cor
+
+local running_corun = false
+
+--- === PUSH ===
+local _modules = {}
+local _module_update = {}
+local _commands = {}
+local _command_handlers = {}
+local _module_dir = "/appdata/system/terminal"
+--- === END PUSH ===
 
 -- to do: nice way to get a local copy of needed api
 -- co-running program should be free to redefine any of these
@@ -133,10 +128,6 @@ local split = split
 local set_clipboard = set_clipboard
 local get_clipboard = get_clipboard
 
--- to do: perhaps cproj can be any program; -> should be "corunning_prog"
--- (or two separate concepts if need)
-local running_cproj = false
-local last_pauseable = -1
 
 local _has_focus = true
 on_event("gained_focus", function() _has_focus = true end)
@@ -154,9 +145,9 @@ function _init()
 	if (not env().corun_program) then
 		window{
 			pauseable = false,
-			-- === PUSH ===
+			--- === PUSH ===
 			title = "PUSH"
-			-- === END PUSH ===
+			--- === END PUSH ===
 		}
 	end
 
@@ -164,83 +155,97 @@ function _init()
 
 end
 
+
+-- scroll just enough to make sure command prompt is visible
+local function show_last_line()
+
+	local hh = 0
+	for i=1,#lineh do
+		hh += lineh[i]
+	end
+	last_total_text_h = hh
+
+	local old_scroll_y = scroll_y
+
+	scroll_y = mid(scroll_y,
+		last_total_text_h - disp_h + 18, -- puts prompt at bottom of screen
+		last_total_text_h + char_h -  5  -- puts prompt at top of screen (same as ctrl-l)
+	)
+
+	--[[
+	if (old_scroll_y ~= scroll_y) then
+		printh("old_scroll_y -> scroll_y  (disp_h, last_total_text_h, btm, top): "..
+			pod{old_scroll_y, scroll_y, disp_h, last_total_text_h, last_total_text_h - disp_h + 18, last_total_text_h + char_h -  5})
+	end
+	]]
+
+end
+
+
 -- to do: string format for custom prompts?
 -- for now, create a return value so that can use sedit
 local function get_prompt()
+	if (input_prompt) return input_prompt.str -- reading some user text
 	local result = "\f6"..pwd().."\f7> "
 	return result -- custom prompt goes here
 end
 
 
-local function run_cproj_callback(func, label)
-	if (type(func) ~= "function") then return end
-
-	-- run as a coroutine (separate lua_State) so that errors don't bring terminal itself down
-
-	coco[func] = coco[func] or cocreate(func)
-
-	local res, err = coresume(coco[func])
-
-
-	--if (res == 3) running_cproj = false --
-
-	if (err) then
-		set_draw_target() -- prevent drawing error to back page or whatever the program is drawing to
-		add_line("\feRUNTIME ERROR: [callback] "..tostr(label))
-		add_line(err)
-
-		send_message(3, {event="report_error", content = "*runtime error"})
-		send_message(3, {event="report_error", content = err})
-		send_message(3, {event="report_error", content = debug.traceback()})
-
-		running_cproj = false
-		window{pauseable = false}
-
-		-- nothing haltable (esc should go straight back into code editor)
-		send_message(3, {event="set_haltable_proc_id", haltable_proc_id = nil})
-
-	end
-
-	if (costatus(coco[func]) == "dead") coco[func] = nil
-
-
+local function resume_corun_program()
+	running_corun = true
+	_draw = corun_draw
+	_update = corun_update
+	send_message(3, {event="set_haltable_proc_id", haltable_proc_id = pid()})
 end
 
+--[[
 
+	return control to terminal
 
+]]
+local function suspend_corun_program()
 
-local function suspend_cproj()
+--	if (corun_cor) printh("@@ suspend_corun_program // corun_cor "..tostring(costatus(corun_cor)))
 
-	if (not running_cproj) return
+	-- stop resuming corun_cor
+	running_corun = false
 
 	-- kill all audio channels
 	note()
 
-	-- copy whatever is on screen
-	blit(get_display(), back_page)
+	-- copy whatever is on screen (if there was a _draw function -- don't bother supporting custom mainloops here)
+	if (_draw and _draw ~= terminal_draw) blit(get_display(), back_page)
 
 	-- consume keypresses
 	readtext(true)
+	send_message(pid(), {event = "reset_kbd"})
 
-	running_cproj = false
+	-- tidy up mess of state
+	input_prompt = nil
+	pressed_enter_while_blocking = false
+	--- === PUSH ===
+	-- resetting cmd breaks alt+l shortcut
+	-- not sure if any downsides?
+	-- cmd = ""
+	--- === END PUSH ===
 
-	scroll_y = 0
---	show_last_line()
+	corun_draw = _draw
+	corun_update = _update
+
+	_draw = terminal_draw
+	_update = terminal_update
+
+	blocking_proc_id = nil
+
+	window{pauseable = false}
 
 	-- back to last directory that user chose
 	local pwd1 = fetch("/ram/system/pwd.pod")
 	if (pwd1) then cd(pwd1) end
 
-	-- terminal is not pauseable unless running something (to do: lose this state when resuming)
-	window{pauseable = false}
+	set_draw_target()
 
-	-- stop playing any sound  // to do: need to pause mixer so that it is resumable
-	-- play_note(0,-1,0,0,0, 0)
-
-	if (env().sandbox) then
-		add_line("\fdsuspended sandboxed process // use \"exit\" to escape sandbox")
-	end
-
+	show_last_line()
 
 end
 
@@ -303,63 +308,54 @@ local function resolve_program_path(prog_name)
 
 end
 
-
--- assume is cproj for now
-local function run_program_inside_terminal(prog_name)
-
+-- 0.2.0e: use meandering center of execution (including the mainloop in lib/foot.lua)
+-- -> no longer need to rely on update / draw callbacks, so reduce the need for special flow logic & disjointed callstacks
+local function corun_program_inside_terminal(prog_name)
 	if (not prog_name) return
 
 	local prog_str = fetch(prog_name)
-
 	if (not prog_str) then
-		-- printh("** could not run "..prog_name.." **")
 		add_line("could not fetch "..prog_name)
 		return
 	end
 
-	coco = {}
+	-- inject a foot that runs _init if the program defines one
+	-- let terminal draw,update persist until redefined (might be an interactive terminal program which uses them)
+	-- also: automatic fullscreen window creation is disabled in foot when corunning -- let the corun program define window
+	-- note: don't need a mainloop -- will use the one already provided by terminal's foot
+	prog_str =
+			"_init = nil; "..
+			prog_str.." \n "..
+[[
+			if (_init) then _init() end
+			if (_draw and not get_display()) then
+				-- create fullscreen window
+				window()
+			end
+]]
 
-	terminal_draw = _draw
-	terminal_update = _update
-
-	_draw,_update,_init = nil,nil,nil
-
-
-	-- to do: need to preprocess in the same way as create_process()
-	-- but don't need to inject libraries / head / mainloop (use terminal's and manage mainloop from terminal)
 	local f, err = load(prog_str, "@"..prog_name, "t", _ENV)
 
 
---	printh(":: run_program_inside_terminal: "..tostr(prog_name))
-
-
 	if (f) then
-
-		run_cproj_callback(f, prog_name) -- to do: fix runtime error causes message written to back page
-		--run_cproj_callback(_init, "_init") -- gets run from foot
-
-		-- record callbacks and revert to terminal ones
-		cproj_draw = _draw
-		cproj_update = _update
-
-		running_cproj = true
-
+		-- kick off execution -- will resume from _update
+		corun_cor = cocreate(f)
+		running_corun = true
 	else
+		-- syntax error  //  to do: other possible errors?
 		send_message(3, {event="report_error", content = "*syntax error"})
 		send_message(3, {event="report_error", content = tostr(err)})
 
-		--add_line("\fesyntax error")
-		add_line("\fe"..err)
-		printh(err)
-		suspend_cproj()
+		-- don't get stuck in a fullscreen pauseable state
+		show_last_line()
+		window{pauseable = false}
 	end
 
-	_draw = terminal_draw
-	_update = terminal_update
-
-
+	scroll_y = 0
 
 end
+
+
 
 
 --[[
@@ -372,7 +368,7 @@ end
 ]]
 local function run_program_in_new_process(prog_name, argv)
 
-	local proc_id = create_process(
+	local proc_id, err = create_process(
 		prog_name,
 		{
 			argv = argv,
@@ -385,6 +381,12 @@ local function run_program_in_new_process(prog_name, argv)
 	)
 
 	if (err) add_line(err)
+
+	-- 0.2.0e: blocking -- until either dead or that process has a window
+	-- (via child_completed, child_created_window messages)
+	if (proc_id) then
+		blocking_proc_id = proc_id
+	end
 
 end
 
@@ -414,7 +416,7 @@ local function run_terminal_command(cmd)
 --	printh("run_terminal_command program: "..tostr(prog_name))
 
 	local argv = {}
-	local argv0 = split(cmd," ",false)
+	local argv0 = split(cmd," ",false) -- to do: quoted strings! wildcard expansion!
 
 	local index = 0 -- 0-based so that 1 is first argument
 	for i=1,#argv0 do
@@ -426,110 +428,73 @@ local function run_terminal_command(cmd)
 
 	-----
 
+	if (argv[0] ~= "." and cmd ~= "") frame_by_frame_mode = false
+
+	if (argv[0] == "." or (cmd == "" and frame_by_frame_mode)) then
+		frame_by_frame_mode = true
+		if (corun_update) corun_update()
+		if (corun_draw) corun_draw()
+		flip()
+		blit(get_display(), back_page) -- copy whatever is on screen
 	--- === PUSH ===
-	local command_matched = false
-
-	if _commands[argv[0]] ~= nil then
-		_commands[argv[0]](argv, _get_push_vars())
-
-		command_matched = true
-	end
-
-	-- if builtin command not found, try a command handler
-	if not command_matched then
-		for handler in all(_command_handlers) do
-			if handler(cmd, _get_push_vars()) then
-				command_matched = true
-				break
-			end
-		end
-	end
-
-	if command_matched then
-		-- do nothing
-	--- === END PUSH ===
-	elseif (prog_name) then
-
-		run_program_in_new_process(prog_name, argv) -- could do filename expansion etc. for arguments
-
 	else
-		-- last: try lua
+		local command_matched = false
 
-		local f, err = load(cmd, nil, "t", _ENV)
+		if _commands[argv[0]] ~= nil then
+			_commands[argv[0]](argv, _get_push_vars())
 
-		if (f) then
-
-			-- run loaded lua as a coroutine
-			local cor = cocreate(f)
-
-			repeat
-				set_draw_target(back_page)
-				_is_terminal_command = true -- temporary hack so that print() goes to terminal. e.g. pset(100,100,8)?pget(100,100)
-
-				local res,err = coresume(cor)
-
-				set_draw_target()
-				_is_terminal_command = false
-
-				if (err) then
-					add_line("\feRUNTIME ERROR")
-					add_line(err)
-
-				end
-			until (costatus ~= "running")
-		else
-
-			-- try to differenciate between syntax error /command not found
-
-			local near_msg = "syntax error near"
-			if (near_msg == sub(err, 5, 5 + #near_msg - 1)) then
-				-- caused by e.g.: "foo" or "foo -a" or "foo a.png" when foo doesn't resolve to a program
-				add_line "command not found"
-			else
-				add_line(err)
-			end
-
+			command_matched = true
 		end
 
-	end
+		-- if builtin command not found, try a command handler
+		if not command_matched then
+			for handler in all(_command_handlers) do
+				if handler(cmd, _get_push_vars()) then
+					command_matched = true
+					break
+				end
+			end
+		end
 
+		if command_matched then
+			-- do nothing
+		--- === END PUSH ===
+		elseif (prog_name) then
+
+			run_program_in_new_process(prog_name, argv) -- could do filename expansion etc. for arguments
+
+		else
+			-- last: try lua
+
+			local f, err = load(cmd, nil, "t", _ENV)
+
+			if (f) then
+
+				-- run loaded lua as a coroutine
+				terminal_cor = cocreate(f)
+
+			else
+
+				-- try to differenciate between syntax error /command not found
+
+				local near_msg = "syntax error near"
+				if (near_msg == sub(err, 5, 5 + #near_msg - 1)) then
+					-- caused by e.g.: "foo" or "foo -a" or "foo a.png" when foo doesn't resolve to a program
+					add_line "command not found"
+				else
+					add_line(err)
+				end
+
+			end
+		end
+	--- === PUSH ===
+	end
+	--- === PUSH ===
 end
 
 
--- scroll down only if needed
-local function show_last_line()
 
-	-- need to print same as will be printed so that wrapping behaves the same
-
-	local hh = 0
-	for i=1,#lineh do
-		hh += lineh[i]
-	end
-	last_total_text_h = hh
-
---	last_total_text_h = #line * char_h -- assumes constant line height
-
-	scroll_y = mid(scroll_y, last_total_text_h - disp_h + 18, last_total_text_h + char_h - 18)
-
-end
-
-
-
-local function clamp_scroll()
-
-	local x, y = 0, 0
-	for i=1,#line do
-		x, y = print(line[i], 1000, y, 7)
-	end
-	last_total_text_h = y
-
-	scroll_y = mid(0, scroll_y, last_total_text_h - (disp_h - 10 - char_h))
-end
-
-
-
---local  -- to do: where is this being called from?
-function add_line(s)
+add_line = function(s)
 	s = tostr(s)
 	if (not s) then return end
 
@@ -543,15 +508,28 @@ function add_line(s)
 		-- kinda inefficient if do many appends, but simplifies height calculation.
 		line[#line] = sub(line[#line], 1, -2)..s
 		-- update height
-		local xx,yy = print(line[#line], 0, 10000, 7)
-		lineh[#lineh] = (yy or 1012) - 10000
+		local xx,yy = print(line[#line], 0, 10000)
+		lineh[#lineh] = max(4, yy and yy-10000)
+	elseif #line >= 1 and (s[1] == "\r" or (s[1] == "\f" and s[3] == "\r")) then -- and (line[#line-1][1] == "\r" or line[#line-1][3] == "\r") then
+		-- \r has a special meaning in this context -- "replace previous line"
+		-- replace previous line; roughly match behaviour of cursor when printing to display
+		-- kinda inefficient if do many appends, but simplifies height calculation.
+		line[#line] = s
+		-- update height
+		local xx,yy = print(line[#line], 0, 10000)
+		lineh[#lineh] = max(4, yy and yy-10000)
 	else
-		local xx,yy = print(s, 0, 10000, 7)
+		local xx,yy = print(s, 0, 10000)
 		add(line,  s)
-		add(lineh, (yy or 1012) - 10000)
+		add(lineh, max(4, yy and yy-10000))
 	end
 
 	show_last_line()
+
+
+
+--	printh(pod{line=#line, num_lineh=#lineh, added_lineh=lineh[#lineh], last_total_text_h=last_total_text_h})
+
 end
 
 
@@ -666,35 +644,112 @@ local tv_frames =
 	userdata"[gfx]0907000707000000070000777777777770707077770000077770707077777777777[/gfx]",
 }
 
+function coresume_until_flipped(c)
+
+	if corun_draw then
+
+		-- corunning a program that has a _draw function defined
+		-->  should be allowed to yield() at top level more than once per frame (e.g. used by print / input / fetch)
+
+		while true do
+			local res,err = coresume(c)
+			if costatus(c) == "suspended" and stat(984) == 0 then
+				-- yielded but didn't flip yet; go around again
+			else
+				-- finished
+				return res,err
+			end
+		end
+
+	else
+
+		-- corunning without a draw function;
+		-- let print() yield reach terminal mainloop
+		return coresume(c)
+
+	end
+end
+
+
 function _update()
 
-	-- app is pauseable when and only when running_cproj is true and fullscreen
-	-- deleteme -- wrong; want to be able to disable pausing from fullscreen app corunning in terminal
---[[
-	if (get_display()) then
-		local w,h = get_display():attribs()
-		local pauseable1 = running_cproj and w == 480 and h == 270
-		if (last_pauseable ~= pauseable1) then
-			last_pauseable = pauseable1
-			window{pauseable = last_pauseable}
+
+	-- something corunning
+
+	if (corun_cor and running_corun)
+	then
+
+		if (costatus(corun_cor) == "suspended") then
+
+			_is_terminal_command = true -- temporary hack so that print() goes to terminal. e.g. pset(100,100,8)?pget(100,100)
+				local res,err = coresume_until_flipped(corun_cor)
+			_is_terminal_command = nil
+
+			if (err) then
+				add_line("\feRUNTIME ERROR")
+				add_line(err)
+				printh("@@ "..err)
+			end
 		end
-	end
-]]
-	if (running_cproj and not cproj_update and not cproj_draw) then
-		suspend_cproj()
+
+		-- finished running corun program
+
+		if (costatus(corun_cor) ~= "running" and costatus(corun_cor) ~= "suspended") then
+
+			-- let it keep "running" when _draw or _update was defined
+			-- the /coroutine/ has finished running, but the program is running using terminal's mainloop
+			-- and the newly defined _update and/or _draw callbacks
+			if (_draw ~= terminal_draw or _update ~= terminal_update) then
+				-- ditch callback that was not defined by the corun program
+				-- dummy callbacks so that foor doesn't need to care about callbacks disappearing
+				if (_draw == terminal_draw) _draw = function() end
+				if (_update == terminal_update) _update = function() end
+			else
+				-- otherwise immediately stop (e.g. custom mainloop or a terminal script)
+				suspend_corun_program()
+				corun_cor = nil
+			end
+
+		end
+
+		if (not input_prompt) return
 	end
 
-	-- while co-running program, use that update instead
-	if (running_cproj) then
-		run_cproj_callback(cproj_update, "_update")
---		window{ icon = tv_frames[((t()*10)\1)%3] }
-		return
+	-- something running in terminal (ALMOST DUPE)
+
+	if (terminal_cor) then
+
+		--printh("running terminal_cor")
+		if (not input_prompt) set_draw_target(back_page)
+		_is_terminal_command = true -- temporary hack so that print() goes to terminal. e.g. pset(100,100,8)?pget(100,100)
+--		local res,err = coresume_until_flipped(terminal_cor)
+		local res,err = coresume(terminal_cor)
+		set_draw_target()
+		_is_terminal_command = nil
+
+		if (err) then
+			add_line("\feRUNTIME ERROR")
+			add_line(err)
+			printh("## "..err)
+		end
+
+		-- finished running terminal command
+		if (costatus(terminal_cor) ~= "running" and costatus(terminal_cor) ~= "suspended") then
+			terminal_cor = nil
+			input_prompt = nil
+			readtext(true)
+			send_message(pid(), {event = "reset_kbd"})
+			cmd = ""
+
+		end
+
 	end
 
-	-- === PUSH ===
+
+	--- === PUSH ===
 	-- Don't use ctrl bindings while alt is held
 	if (key("ctrl") and not key("alt")) then
-	-- === END PUSH
+	--- === END PUSH
 
 		if keyp("l") then
 			set_draw_target(back_page)
@@ -725,29 +780,40 @@ function _update()
 
 		end
 
-		-- === PUSH ===
+		--- === PUSH ===
 		-- Move Ctrl+A binding to be next to Ctrl+E binding
 		if (keyp("a")) cursor_pos = 0
-		-- === END PUSH ===
+		--- === END PUSH ===
 		if (keyp("e")) cursor_pos = #cmd
 
-
-		-- === PUSH ===
+		--- === PUSH ===
 		-- Move Ctrl+D (delete) binding with other Ctrl bindings
 		if keyp("d") then
 			cmd = sub(cmd, 1, max(0,cursor_pos))..sub(cmd, cursor_pos+2)
 		end
-		-- === END PUSH ===
+		--- === END PUSH ===
 
 		-- clear text intput queue; don't let anything else pass through
 		-- readtext(true) -- 0.1.0f: wrong! ctrl sometimes used for text entry (altgr), and anyway ctrl-* shouldn't ever produce textinput event
 	end
 
-	while (peektext()) do
+	-- single character response to blocking input
+	if (input_prompt and input_prompt.single_char and peektext()) then
+		local k = readtext()
+		send_message(input_prompt.pid, {event = "input_response", response = k})
+		if (not input_prompt.hide) add_line(get_prompt()..k) -- show what was entered
+		input_prompt = nil
+		cmd = ""
+		return
+	end
+
+	-- can read chars for command unless already pressed enter while blocking
+	-- (want to buffer next typed command, but only up until pressed enter -- give up and discard after that)
+	while (peektext() and not (pressed_enter_while_blocking and not input_prompt)) do
 		local k = readtext()
 
 		-- insert at cursor
-		-- === PUSH ===
+		--- === PUSH ===
 		-- don't read input while holding alt
 		-- allows you to bind alt+key shortcuts
 		if not key("alt") then
@@ -755,14 +821,14 @@ function _update()
 
 			cursor_pos = cursor_pos + 1
 		end
-		-- === END PUSH ===
+		--- === END PUSH ===
+
+		show_last_line()
 	end
 
-	-- === PUSH ===
-	-- Change default keybindings to not use control or alt
-	-- Useful for adding custom bindings that use control or alt
-	if not key("ctrl") and not key("alt") then
-	--- === END PUSH ===
+	-- tab completion and histroy navigation: not available for input() or otherwise running a blocking program
+	if (not blocking_proc_id) then
+
 		if (keyp("tab")) then
 			tab_complete_filename();
 		end
@@ -781,61 +847,83 @@ function _update()
 			cursor_pos = #cmd
 		end
 
-		if (keyp("left")) then
-			cursor_pos = mid(0, cursor_pos - 1, #cmd)
-		end
-
-		if (keyp("right")) then
-			cursor_pos = mid(0, cursor_pos + 1, #cmd)
-		end
-
-		-- === PUSH ===
-		-- Ctrl+A moved to other Ctrl Bindings
-		if (keyp("home")) cursor_pos = 0
-		-- === END PUSH ===
-		if (keyp("end")) cursor_pos = #cmd
-
-
-		if (keyp("enter")) then
-
-			add_line(get_prompt()..cmd)
-
-			-- execute the command
-
-			run_terminal_command(cmd)
-			show_last_line()
-
-
-			if (history[#history] == "") then
-				history[#history] = cmd
-			else
-				add(history, cmd)
-				store("/ram/system/history.pod", history)
-				store("/ram/system/pwd.pod", pwd())
-			end
-
-			history_pos = #history+1
-
-
-			cmd = ""
-			cursor_pos = #cmd -- cursor at end of command
-
-		end
-
-		if (keyp("backspace") and #cmd > 0) then
-			cmd = sub(cmd, 1, max(0,cursor_pos-1))..sub(cmd, cursor_pos+1)
-			cursor_pos = mid(0, cursor_pos - 1, #cmd)
-		end
-
-	-- === PUSH ===
-		-- Ctrl+D moved to other Ctrl Bindings
-		if (keyp("delete")) then
-			cmd = sub(cmd, 1, max(0,cursor_pos))..sub(cmd, cursor_pos+2)
-		end
 	end
-	-- === END PUSH ===
 
-	-- === PUSH ===
+	if (keyp("left")) then
+		cursor_pos = mid(0, cursor_pos - 1, #cmd)
+	end
+
+	if (keyp("right")) then
+		cursor_pos = mid(0, cursor_pos + 1, #cmd)
+	end
+
+	--- === PUSH ===
+	-- Ctrl+A moved to other Ctrl Bindings
+	if (keyp("home")) cursor_pos = 0
+	--- === END PUSH ===
+	if (keyp("end")) cursor_pos = #cmd
+
+	if (keyp("backspace") and #cmd > 0) then
+		cmd = sub(cmd, 1, max(0,cursor_pos-1))..sub(cmd, cursor_pos+1)
+		cursor_pos = mid(0, cursor_pos - 1, #cmd)
+	end
+
+	--- === PUSH ===
+	-- Ctrl+D moved to other Ctrl Bindings
+	if (keyp("delete")) then
+		cmd = sub(cmd, 1, max(0,cursor_pos))..sub(cmd, cursor_pos+2)
+	end
+	--- === END PUSH ===
+
+
+	--if (input_prompt) printh(t()) -- check framerate for debugging keyp("enter") responsivity
+
+	if (keyp("enter")) then
+
+		-- not waiting for input and there is a blocking process running -- don't process command
+		-- (and note that enter was pressed, to stop reading further additions to cmd)
+		if (blocking_proc_id and not input_prompt) then
+			pressed_enter_while_blocking = true
+			return
+		end
+
+		if (input_prompt) then
+			-- send back to calling program
+			send_message(input_prompt.pid, {event = "input_response", response = cmd})
+			if (not input_prompt.hide) add_line(get_prompt()..cmd) -- show what was entered
+			input_prompt = nil
+			cmd = ""
+			return
+		end
+
+
+		if (cmd ~= "" or not frame_by_frame_mode) then
+			add_line(get_prompt()..cmd)
+		end
+
+		-- execute the command
+
+		run_terminal_command(cmd)
+		show_last_line()
+
+
+		if (history[#history] == "") then
+			history[#history] = cmd
+		elseif cmd ~= "" then
+			add(history, cmd)
+			store("/ram/system/history.pod", history)
+			store("/ram/system/pwd.pod", pwd())
+		end
+
+		history_pos = #history+1
+
+
+		cmd = ""
+		cursor_pos = #cmd -- cursor at end of command
+
+	end
+
+	--- === PUSH ===
 	for mupdate in all(_module_update) do
 		-- run the update function
 		local res = mupdate(_get_push_vars())
@@ -843,28 +931,26 @@ function _update()
 	end
 	--- === END PUSH ===
 end
+terminal_update = _update
 
 
 function _draw()
 
 	local disp = get_display()
-	disp_w, disp_h = disp:width(), disp:height()
+	if (disp) disp_w, disp_h = disp:width(), disp:height()
 
---	printh("terminal draw "..pod{disp_w, disp_h})
+	--if (running_corun) printh("_draw running_corun")
+--	printh("terminal draw "..time())
 
-	if (running_cproj) then
-		run_cproj_callback(cproj_draw, "_draw")
-	else
+--	local show_terminal_layer = input_prompt or not running_corun
+	local show_terminal_layer = true -- 0.2.0e: always draw -- center of execution doesn't reach here when when terminal layer isn't wanted
+
+	if show_terminal_layer then
+
 		camera()
 		clip()
-	end
-
-	--set_draw_target() -- commented to make debugging easier
-
-	if (not running_cproj) then
 		cls()
 		blit(back_page, nil, 0, 0, 0, 0, 480, 270)
-	end
 
 
 	-- experiment: run painto / dots3d in terminal
@@ -874,27 +960,10 @@ function _draw()
 	end
 ]]
 
-
 	--scroll_y = mid(0, scroll_y, #line * char_h - disp_h)
-
-
 
 	--printh("disp_h: "..disp_h.." scroll_y: "..scroll_y.." max: "..(#line * char_h - disp_h))
 
-	local function draw_text_masked(str, x, y, col)
-
-		-- to do: how to allow colour codes?
-
-		for yy=y-1,y+1 do
- 			for xx=x-1,x+1 do
-				print(str,xx, yy, 32)
-			end
-		end
-
-		return print(str, x, y, col)
-	end
-
-	if (not running_cproj) then
 
 		local x = left_margin
 		local y = 7 - scroll_y
@@ -909,56 +978,88 @@ function _draw()
 		poke(0x5f36, (@0x5f36) | 0x80) -- turn on wrap
 
 		for i=1,#line do
+			--printh(i..": "..scroll_y)
 			_, y = print(line[i], x, y, 7)
+			--_, y = print("\^ow5a"..line[i], x, y, 7) -- kinda messy (and too expensive?)
 		end
 
+		y = y or 0
+
 		last_total_text_h = y - y0
+
 
 		-- poke(0x5f36, (@0x5f36) | 0x80) -- turn on wrap
 
 		camera()
-		print(wrap_prefix..get_prompt()..cmd.."\0", x, y, 7)
 
-		print(wrap_prefix..get_prompt()..sub(cmd,1,cursor_pos).."\0", x, y, 7)
+		-- show prompt when not waiting for a program to complete
+		if (not blocking_proc_id or input_prompt) then
 
-		local cx, cy = peek4(0x54f0, 2)
-		if (cx > disp_w - peek(0x4000)) cx,cy = peek4(0x54f8), cy + peek(0x4002) -- where next character is (probably) going to be after warpping
+			local prefix = "\^owff"..wrap_prefix..get_prompt() -- show outline only when entering text
+			print(prefix..cmd.."\0", x, y, 7)
+			print(prefix..sub(cmd,1,cursor_pos).."\0", x, y, 7)
 
-		-- show cursor when window is active
-		if (_has_focus) then
-			if (time()%1 < .5) then
-				rectfill(cx, cy, cx+char_w-1, cy+char_h-4, 14)
+			local cx, cy = peek4(0x54f0, 2)
+			if (cx > disp_w - peek(0x4000)) cx,cy = peek4(0x54f8), cy + peek(0x4002) -- where next character is (probably) going to be after warpping
+
+			-- show cursor when window is active (no cursor for input prompt when reading single char)
+			if (_has_focus and (not input_prompt or not (input_prompt.single_char and input_prompt.str == ""))) then
+				if (time()%1 < .5) then
+					rectfill(cx, cy, cx+char_w-1, cy+char_h-4, 14)
+				end
 			end
+
 		end
 
 	end
 
 end
+terminal_draw = _draw
 
-on_event("print", function(msg)
 
-	add_line(msg.content)
-
+-- can stop blocking when child completed
+on_event("child_completed", function(msg)
+	if (msg.proc_id == blocking_proc_id) then
+		blocking_proc_id = nil
+		suspend_corun_program()
+	end
+end)
+-- .. or created a window
+on_event("child_created_window", function(msg)
+	if (msg.proc_id == blocking_proc_id) then
+		blocking_proc_id = nil
+		suspend_corun_program()
+	end
 end)
 
+on_event("print", function(msg)
+	add_line(msg.content)
+end)
+
+on_event("input", function(msg)
+
+	input_prompt = {
+		str = msg.prompt,
+		pid = msg._from,
+		hide = msg.hide,
+		single_char = msg.single_char
+	}
+end)
 
 
 -- window manager can tell guest program to halt
 -- (usually by pressing escape)
 on_event("halt", function(msg)
-	if (running_cproj) then
-		suspend_cproj()
-
-	end
+	if (corun_cor) suspend_corun_program() -- can resume later
 end)
 
 
 
-scroll_y = 0
+--scroll_y = 0
 
 -- run e.g. pwc output
 if (env().corun_program) then
-	run_program_inside_terminal(env().corun_program)
+	corun_program_inside_terminal(env().corun_program)
 end
 
 -- happens when open terminal with ctrl-r
@@ -973,22 +1074,6 @@ if (env().reload_history) then
 end
 
 
--- process events like this because corunning program might have own handlers
--- (only one handler per event -- see event.lua)
--- update: have multiple events per subscriber now; can keep _subscribe_to_events out of userspace (extraneous)
---[[
-subscribe_to_events(function(msg)
-
-	-- ignore all events while running cproj
-	if (running_cproj) then return end
-
-	if (msg.event == "mousewheel") then
-		scroll_y = scroll_y - msg.wheel_y * char_h * 2
-	end
-
-end)
-
-]]
 
 on_event("mousewheel", function(msg)
 	scroll_y = scroll_y - msg.wheel_y * char_h * 2
@@ -1002,7 +1087,7 @@ on_event("reload_src", function(msg)
 		return
 	end
 
-	local prog_name = msg.working_file -- env().corun_program
+	local prog_name = msg.location
 	local prog_str = fetch(prog_name)
 
 	if (not prog_str) return
@@ -1023,8 +1108,36 @@ on_event("resize", function(msg)
 	show_last_line()
 end)
 
--- === PUSH ===
+--- === PUSH ===
 -- get and set push vars are global, so they can be accessed from any function
+_commands = {
+	cd = function(argv)
+		local result = cd(argv[1] or "/")
+		if (result) then add_line(result) end
+	end,
+	exit = function(argv)
+		exit(0)
+	end,
+	cls = function(argv)
+		set_draw_target(back_page)
+		cls()
+		set_draw_target()
+		scroll_y = last_total_text_h
+	end,
+	reset = function(argv)
+		reset()
+		window{pauseable=false}
+		vid(0)
+
+	end,
+	resume = function(argv)
+		if (corun_cor) then
+			resume_corun_program()
+		else
+			print("nothing to resume")
+		end
+	end
+}
 
 -- Sets local variables that can't be accessed from a PUSH module
 function _set_push_vars(res)
@@ -1054,7 +1167,8 @@ function _get_push_vars()
 		history = history, -- command history
 		get_prompt = get_prompt, -- prompt function
 		run_terminal_command = run_terminal_command, -- run command function
-		commands = _commands -- builtin commands
+		commands = _commands, -- builtin commands
+		input_prompt = input_prompt
 	}
 end
 
@@ -1102,4 +1216,4 @@ for file in all(ls(_module_dir)) do
 	end
 end
 
--- === END PUSH ===
+--- === END PUSH ===
