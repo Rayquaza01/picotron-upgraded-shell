@@ -1,4 +1,4 @@
---[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.7.10"]]
+--[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.7.20"]]
 --[[
 
 	PUSH
@@ -127,6 +127,7 @@ local exit = exit
 local split = split
 local set_clipboard = set_clipboard
 local get_clipboard = get_clipboard
+local tostring = tostring
 
 
 local _has_focus = true
@@ -323,11 +324,14 @@ local function corun_program_inside_terminal(prog_name)
 	-- let terminal draw,update persist until redefined (might be an interactive terminal program which uses them)
 	-- also: automatic fullscreen window creation is disabled in foot when corunning -- let the corun program define window
 	-- note: don't need a mainloop -- will use the one already provided by terminal's foot
+	-- "if (_draw == d0) poke(0x547f, peek(0x547f) & ~0x20)" --need to ctrl+r tests/background_work (because terminal sets that bit at first)
+
 	prog_str =
-			"_init = nil; "..
+			"_init = nil local _draw0 = _draw; "..
 			prog_str.." \n "..
 [[
 			if (_init) then _init() end
+			if (_draw == _draw0) poke(0x547f, peek(0x547f) & ~0x20) -- no _draw defined -> clear bit (see foot)
 			if (_draw and not get_display()) then
 				-- create fullscreen window
 				window()
@@ -341,6 +345,10 @@ local function corun_program_inside_terminal(prog_name)
 		-- kick off execution -- will resume from _update
 		corun_cor = cocreate(f)
 		running_corun = true
+
+		-- tricky: need to always run terminal update in background so can bootstrap the corun update
+		-- this bit cleared in head.lua set_window_1, so background updates don't remain set when ctrl+r
+		poke(0x547f, peek(0x547f) | 0x40);
 	else
 		-- syntax error  //  to do: other possible errors?
 		send_message(3, {event="report_error", content = "*syntax error"})
@@ -368,12 +376,20 @@ end
 ]]
 local function run_program_in_new_process(prog_name, argv)
 
+	local fileview = nil
+
+	-- 0.2.0h: terminal is allowed to grant sandboxed access to argv[1] when it is a resolvable filename
+	if fullpath(argv[1]) then
+		fileview = {{location=fullpath(argv[1]), mode="RW"}}
+	end
+
 	local proc_id, err = create_process(
 		prog_name,
 		{
 			argv = argv,
 			path = pwd(), -- used by commandline programs -- cd(env().path)
 			window_attribs = {show_in_workspace = true},
+			fileview = fileview,
 
 			-- tell new process where to print to  (0.1.1e unless new terminal!)
 			print_to_proc_id = prog_name ~= env().argv[0] and pid() or nil,
@@ -686,9 +702,13 @@ function _update()
 			_is_terminal_command = nil
 
 			if (err) then
-				add_line("\feRUNTIME ERROR")
-				add_line(err)
-				printh("@@ "..err)
+				-- errors that occur when running at top level (including _init)  are caught here;
+				-- can't access callstack (?) so just report single line error
+				send_message(3, {event="report_error", content = "*runtime error"})
+				send_message(3, {event="report_error", content = tostring(err)})
+				send_message(3, {event="report_error", content = debug.traceback(corun_cor)})
+
+				--printh("@@ "..err)
 			end
 		end
 
@@ -1051,6 +1071,8 @@ end)
 -- (usually by pressing escape)
 on_event("halt", function(msg)
 	if (corun_cor) suspend_corun_program() -- can resume later
+	if (msg.description) print(msg.description)
+	halted_t = time()
 end)
 
 
