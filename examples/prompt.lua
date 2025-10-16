@@ -11,7 +11,7 @@ local function prompt()
 	local path = split(pwd(), "/", false)
 	path[#path] = "\fc" .. path[#path]
 
-	return "\fg" .. table.concat(path, "/") .. "\fb$\f7 "
+	return "\f6" .. (env().sandbox and "[sandboxed] " or "") .. "\fg" .. table.concat(path, "/") .. "\fb$\f7 "
 end
 
 return {

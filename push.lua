@@ -1,4 +1,4 @@
---[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.7.20"]]
+--[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.10.16"]]
 --[[
 
 	PUSH
@@ -54,6 +54,7 @@ local line={}
 -- Keep add_line global for convenience...
 -- local add_line = function() end
 --- === PUSH ===
+local lines_at_corun_resume = 0
 local lineh={}
 local history={}
 local history_pos = 1
@@ -187,16 +188,27 @@ end
 -- for now, create a return value so that can use sedit
 local function get_prompt()
 	if (input_prompt) return input_prompt.str -- reading some user text
-	local result = "\f6"..pwd().."\f7> "
+	local result
+	result = "\f6"..(env().sandbox and "[sandboxed] " or "")..pwd().."\f7> "
 	return result -- custom prompt goes here
 end
 
 
 local function resume_corun_program()
+	lines_at_corun_resume = #line
 	running_corun = true
-	_draw = corun_draw
-	_update = corun_update
+
 	send_message(3, {event="set_haltable_proc_id", haltable_proc_id = pid()})
+
+	-- window manager remebers if that window was ever pauseable
+	send_message(3, {event="resume_pwc", haltable_proc_id = pid()})
+
+	if (corun_update or corun_draw) then
+		if (corun_draw)   _draw = corun_draw
+		if (corun_update) _update = corun_update
+	end
+
+	poke(0x547f, peek(0x547f) | corun_windowed_bit)
 end
 
 --[[
@@ -208,14 +220,17 @@ local function suspend_corun_program()
 
 --	if (corun_cor) printh("@@ suspend_corun_program // corun_cor "..tostring(costatus(corun_cor)))
 
+	-- 0.2.0i: copy whatever is on the screen after corun (unless was using print / input to add lines -- don't want to copy that)
+	--> can run a program like: vid() circfill(200,100,50,12) and be left with the graphical output in back page
+	if (#line == lines_at_corun_resume) blit(get_display(), back_page)
+--	if (#line == 0) blit(get_display(), back_page)
+
 	-- stop resuming corun_cor
 	running_corun = false
 
 	-- kill all audio channels
 	note()
 
-	-- copy whatever is on screen (if there was a _draw function -- don't bother supporting custom mainloops here)
-	if (_draw and _draw ~= terminal_draw) blit(get_display(), back_page)
 
 	-- consume keypresses
 	readtext(true)
@@ -230,11 +245,13 @@ local function suspend_corun_program()
 	-- cmd = ""
 	--- === END PUSH ===
 
-	corun_draw = _draw
-	corun_update = _update
+	-- 0.2.0i: can return to nil when _draw / _update not defined
+	corun_draw = _draw ~= terminal_draw and _draw or nil
+	corun_update = _update ~= terminal_update and _update or nil
 
 	_draw = terminal_draw
 	_update = terminal_update
+	corun_windowed_bit = peek(0x547f) & 0x8 -- restore this bit on resume
 
 	blocking_proc_id = nil
 
@@ -447,6 +464,13 @@ local function run_terminal_command(cmd)
 	if (argv[0] ~= "." and cmd ~= "") frame_by_frame_mode = false
 
 	if (argv[0] == "." or (cmd == "" and frame_by_frame_mode)) then
+
+		if (not corun_update and not corun_update) then
+			-- to do: support this if can unify coresume_until_flipped
+			add_line("no draw / update callbacks found")
+			return
+		end
+
 		frame_by_frame_mode = true
 		if (corun_update) corun_update()
 		if (corun_draw) corun_draw()
@@ -680,8 +704,19 @@ function coresume_until_flipped(c)
 	else
 
 		-- corunning without a draw function;
-		-- let print() yield reach terminal mainloop
-		return coresume(c)
+		--> run until halted or finished [to do: or _draw function defined?]
+		-- to do: would be nice to use same pattern as above; but custom mainloop from terminal vs separate process is quite different
+		while true do
+			local res,err = coresume(c)
+			--printh("costatus: "..pod{costatus(c), running_corun})
+			if costatus(c) == "suspended" and running_corun then
+				-- yielded but still running; go through terminal update/draw to allow input / print
+				return
+			else
+				-- finished
+				return res,err
+			end
+		end
 
 	end
 end
@@ -697,9 +732,7 @@ function _update()
 
 		if (costatus(corun_cor) == "suspended") then
 
-			_is_terminal_command = true -- temporary hack so that print() goes to terminal. e.g. pset(100,100,8)?pget(100,100)
-				local res,err = coresume_until_flipped(corun_cor)
-			_is_terminal_command = nil
+			local res,err = coresume_until_flipped(corun_cor)
 
 			if (err) then
 				-- errors that occur when running at top level (including _init)  are caught here;
@@ -741,11 +774,9 @@ function _update()
 
 		--printh("running terminal_cor")
 		if (not input_prompt) set_draw_target(back_page)
-		_is_terminal_command = true -- temporary hack so that print() goes to terminal. e.g. pset(100,100,8)?pget(100,100)
---		local res,err = coresume_until_flipped(terminal_cor)
+		poke(0x547f, peek(0x547f) & ~0x8) -- print to terminal until a window is created  --  pset(100,100,8)?pget(100,100)
 		local res,err = coresume(terminal_cor)
 		set_draw_target()
-		_is_terminal_command = nil
 
 		if (err) then
 			add_line("\feRUNTIME ERROR")
@@ -836,14 +867,13 @@ function _update()
 		--- === PUSH ===
 		-- don't read input while holding alt
 		-- allows you to bind alt+key shortcuts
-		if not key("alt") then
+		-- ignore input right after stop() -- annoying
+		if (not key("alt")) and (not halted_t or time() > halted_t + 0.25) then
 			cmd = sub(cmd, 1, cursor_pos) .. k .. sub(cmd, cursor_pos+1)
-
 			cursor_pos = cursor_pos + 1
+			show_last_line()
 		end
 		--- === END PUSH ===
-
-		show_last_line()
 	end
 
 	-- tab completion and histroy navigation: not available for input() or otherwise running a blocking program
@@ -1070,7 +1100,9 @@ end)
 -- window manager can tell guest program to halt
 -- (usually by pressing escape)
 on_event("halt", function(msg)
-	if (corun_cor) suspend_corun_program() -- can resume later
+	if (corun_cor) then
+		suspend_corun_program() -- can resume later
+	end
 	if (msg.description) print(msg.description)
 	halted_t = time()
 end)
@@ -1101,7 +1133,9 @@ on_event("mousewheel", function(msg)
 	scroll_y = scroll_y - msg.wheel_y * char_h * 2
 end)
 
-
+--[[
+	ctrl-shift-r (wm) to live-reload lua files or gfx files
+]]
 on_event("reload_src", function(msg)
 
 	-- security: only accept from window manager
@@ -1109,17 +1143,37 @@ on_event("reload_src", function(msg)
 		return
 	end
 
-	local prog_name = msg.location
-	local prog_str = fetch(prog_name)
+	local src_file = msg.location
 
-	if (not prog_str) return
+	if (src_file:ext() == "lua") then
 
-	local f = load(prog_str, "@"..prog_name, "t", _ENV)
+		local prog_str = fetch(src_file)
+		if (not prog_str) return
+		local f = load(prog_str, "@"..src_file, "t", _ENV)
 
-	if (f) then
-		f()
-	else
-		-- to do: how to return error?
+		if (f) then
+			f()
+			notify("reloaded src file: "..src_file:basename())
+		else
+			-- to do: how to return error?
+			notify("could not compile")
+		end
+	end
+
+	if (src_file:ext() == "gfx") then
+		-- 0.2.0i: reload  spritebank
+
+		local num = tonum(src_file:basename():sub(1,2)) or tonum(src_file:basename():sub(1,1))
+		if (num and num >= 0 and num < 32) then
+			local g = fetch(src_file)
+			if g and type(g) == "table" then
+				for i=0,255 do
+					if type(g[i]) == "table" and type(g[i].bmp) == "userdata" then
+						set_spr(num*256 + i, g[i].bmp)
+					end
+				end
+			end
+		end
 	end
 
 
