@@ -188,6 +188,10 @@ Replaces the prompt with one that makes the current directory be a brighter colo
 
 Adds the present working directory to the window title.
 
+### rm.lua
+
+Aliases rm to trash, from [trashman](https://github.com/Rayquaza01/trashman). Requires trashman to be installed in `/appdata/system/util/`
+
 ### `source.lua`
 
 Adds a `source` command, to execute a lua file inside the terminal process
