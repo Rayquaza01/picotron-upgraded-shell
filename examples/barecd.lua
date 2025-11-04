@@ -13,6 +13,11 @@ local function bare_cd(cmd, push)
 		return false
 	end
 
+	-- don't cd into bbs
+	if cmd:prot() == "bbs" then
+		return false
+	end
+
 	-- don't cd into any carts
 	-- if cmd:find("%.p64$") or cmd:find("%.p64%.png$") or cmd:find("%.rom$") then
 	-- 	return false
