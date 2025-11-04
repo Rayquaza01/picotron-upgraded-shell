@@ -1,4 +1,4 @@
---[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.10.16"]]
+--[[pod_format="raw",author="Arnaught",created="2024-12-04 21:59:45",icon=userdata("u8",16,16,"00000001010101010101010101000000000001070707070707070707070100000001070d0d0d0d0d0d0d0d0d0d07010001070d0d0d0d0d0d0d0d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d0d07070d0d0d0d070101070d0d0d0d0d07070d0d0d0d0d070101070d0d0d0d07070d0d0d0d0d0d070101070d0d0d0d0d0d0d0d0d0d0d0d07010106070d0d0d0d0d0d0d0d0d0d07060101060607070707070707070707060601000106060606060606060606060601000000010606060606060606060601000000000001010101010101010101000000"),modified="2025-02-02 16:29:00",notes="Picotron Upgraded SHell",revision=109,title="PUSH",version="2025.11.04"]]
 --[[
 
 	PUSH
@@ -16,9 +16,11 @@
 ]]
 
 
+local _envdat = env()
+
 -- set preferred window size unless about to corun a program (which should be the one to create the window w/ size, icon)
 -- this window size might be overwritten by env().window_attribs
-if (not env().corun_program) then
+if (not _envdat.corun_program) then
 	window{
 		width=260, -- 0.1.0e: changed to 240 (was 320). be more boxy. 5*52, 4*65
 		height=160,
@@ -26,6 +28,13 @@ if (not env().corun_program) then
 	}
 end
 
+-- 0.2.1c: by providing a history file, multiple instances of terminal can share the same merged command history
+-- pwc_output windows (the default fullscreen window, and windows created with ctrl+r) automatically share /ram/system/history.pod
+local history_file = _envdat.history
+if (not history_file and _envdat.window_attribs and _envdat.window_attribs.pwc_output) then
+	history_file = "/ram/system/history.pod"
+end
+--printh("terminal history file: "..tostring(history_file))
 
 
 if (pwd() == "/system/apps") cd("/") -- start in root instead of location of terminal.lua
@@ -41,8 +50,8 @@ if fullpath(env().argv[1]) then
 end
 
 -- 0.2.0e: set starting path via env().path
-if env().path then
-	cd(env().path)
+if _envdat.path then
+	cd(_envdat.path)
 end
 
 --- *** NO GLOBALS ***   --   don't want to collide with co-running program
@@ -80,6 +89,8 @@ local terminal_cor
 local corun_cor
 
 local running_corun = false
+local corun_windowed_bit = 0x0
+local pwd_on_suspend = nil
 
 --- === PUSH ===
 local _modules = {}
@@ -144,7 +155,7 @@ local coco = {}
 function _init()
 
 	-- don't pause fullscreen terminal when not corunning pwc
-	if (not env().corun_program) then
+	if (not _envdat.corun_program) then
 		window{
 			pauseable = false,
 			--- === PUSH ===
@@ -189,7 +200,7 @@ end
 local function get_prompt()
 	if (input_prompt) return input_prompt.str -- reading some user text
 	local result
-	result = "\f6"..(env().sandbox and "[sandboxed] " or "")..pwd().."\f7> "
+	result = "\f6"..(_envdat.sandbox and "[sandboxed] " or "")..pwd().."\f7> "
 	return result -- custom prompt goes here
 end
 
@@ -209,7 +220,10 @@ local function resume_corun_program()
 	end
 
 	poke(0x547f, peek(0x547f) | corun_windowed_bit)
+
+	if (pwd_on_suspend) cd(pwd_on_suspend)
 end
+
 
 --[[
 
@@ -258,6 +272,7 @@ local function suspend_corun_program()
 	window{pauseable = false}
 
 	-- back to last directory that user chose
+	pwd_on_suspend = pwd()
 	local pwd1 = fetch("/ram/system/pwd.pod")
 	if (pwd1) then cd(pwd1) end
 
@@ -307,13 +322,24 @@ local function resolve_program_path(prog_name)
 
 	if (not prog_name) return nil
 
-	local prog_name_0 = prog_name
+	-- check for illegal filename chars -> probably a lua command
+	if (string.find(prog_name, "\"", 1, true)) return nil
+
+	-- need explicit exension when running protocol path
+	-- (anywhen paths can't rely on try_multiple_extensions failing because doesn't test actual existence. to do: fix ~ is dangerous!)
+	if (prog_name:prot()) then
+		local ext = prog_name:ext()
+		return (ext and ext:is_cart() or ext=="lua") and prog_name or nil
+	end
+
+	 -- shorthand; too complex to make #foo a first-class alternative to bbs://foo.p64  //  consider: ext(), fullpath()
+	if (prog_name[1] == "#") prog_name = "bbs://"..prog_name:sub(2)..".p64"
 
 	-- /appdata/system/util/ can be used to extend built-in apps (same pattern as other collections)
 	-- update: not true, other collections (wallpapers) are replaced rather than extended by /appdata
 
-	if (type(prog_name) == "string" and prog_name[1] == ".") then
-		-- 0.1.1:  ./foo.lua, ../foo.lua -> don't search other paths
+	if (prog_name[1] == "." or prog_name[1] == "/") then
+		-- 0.1.1:  ./foo.lua, ../foo.lua, absolute path -> don't search other paths
 		return try_multiple_extensions(prog_name)
 	end
 
@@ -366,6 +392,7 @@ local function corun_program_inside_terminal(prog_name)
 		-- tricky: need to always run terminal update in background so can bootstrap the corun update
 		-- this bit cleared in head.lua set_window_1, so background updates don't remain set when ctrl+r
 		poke(0x547f, peek(0x547f) | 0x40);
+		poke(0x547f, peek(0x547f) & ~0x8) -- print to terminal until a window is created
 	else
 		-- syntax error  //  to do: other possible errors?
 		send_message(3, {event="report_error", content = "*syntax error"})
@@ -609,7 +636,7 @@ local function tab_complete_filename()
 	local prefix = fullpath(prefix)
 	if (not prefix) return -- bad path
 
-	local prot = prefix:prot()
+	local prot = prefix:prot(true) -- true to only check string prefix
 	local prot_str = prot and (prot.."://") or ""
 	if (prot) then
 		prefix = prefix:sub(#prot+3)
@@ -702,7 +729,6 @@ function coresume_until_flipped(c)
 		end
 
 	else
-
 		-- corunning without a draw function;
 		--> run until halted or finished [to do: or _draw function defined?]
 		-- to do: would be nice to use same pattern as above; but custom mainloop from terminal vs separate process is quite different
@@ -729,7 +755,6 @@ function _update()
 
 	if (corun_cor and running_corun)
 	then
-
 		if (costatus(corun_cor) == "suspended") then
 
 			local res,err = coresume_until_flipped(corun_cor)
@@ -961,7 +986,12 @@ function _update()
 			history[#history] = cmd
 		elseif cmd ~= "" then
 			add(history, cmd)
-			store("/ram/system/history.pod", history)
+		end
+
+		-- store history if there is one
+
+		if (history_file and cmd ~= "") then
+			store(history_file, {pid(), history, pwd()})
 			store("/ram/system/pwd.pod", pwd())
 		end
 
@@ -1112,21 +1142,31 @@ end)
 --scroll_y = 0
 
 -- run e.g. pwc output
-if (env().corun_program) then
-	corun_program_inside_terminal(env().corun_program)
+if (_envdat.corun_program) then
+	corun_program_inside_terminal(_envdat.corun_program)
 end
 
--- happens when open terminal with ctrl-r
--- or when terminal window is recreated (because died due to out of ram)
-if (env().reload_history) then
 
-	local history1 = fetch("/ram/system/history.pod")
-	if (type(history1) == "table") history = history1
-	history_pos = #history + 1
+function load_history(do_cd)
+	if (not history_file) return
+	local hdat = fetch(history_file)
 
+	if type(hdat) == "table" and hdat[1] ~= pid()  -- don't reload if this process wrote the file
+	then
+		-- printh(" > loading history // pwd: "..hdat[3])
+		history = hdat[2]
+		--if (do_cd) cd(hdat[3]) -- only on startup
+		history_pos = #history + 1
 	scroll_y = 0
+	end
 end
 
+-- pwc_output: always load history_f if it exists
+-- used to be env().reload_history, but covaries and means the same thing
+if history_file then
+	load_history(true)
+	on_event("modified:"..history_file, load_history)
+end
 
 
 on_event("mousewheel", function(msg)
@@ -1198,6 +1238,7 @@ _commands = {
 		set_draw_target(back_page)
 		cls()
 		set_draw_target()
+		line={} lineh={} -- 0.2.1c: clear text
 		scroll_y = last_total_text_h
 	end,
 	reset = function(argv)
