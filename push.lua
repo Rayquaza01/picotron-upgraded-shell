@@ -45,8 +45,8 @@ if (pwd() == "/appdata/system/util") cd("/")
 
 
 -- 0.1.1e: set starting path via commandline
-if fullpath(env().argv[1]) then
-	cd(fullpath(env().argv[1]))
+if fullpath(_envdat.argv[1]) then
+	cd(fullpath(_envdat.argv[1]))
 end
 
 -- 0.2.0e: set starting path via env().path
